@@ -1,20 +1,22 @@
 #!/usr/bin/env python3
 # Data Handling
-import pandas as pd
+# Strings
+import re
 
-# import openpyxl
-import numpy as np
+# from pathlib import Path
+from io import BytesIO, StringIO
 
 # System
 # from os import listdir, makedirs
 from os.path import basename  # , exists, isfile, join
 
-# from pathlib import Path
-from io import StringIO, BytesIO
+# import openpyxl
+import numpy as np
+import pandas as pd
+
 # from functools import reduce
 
-# Strings
-import re
+
 # import string
 
 
@@ -188,4 +190,3 @@ def collect_results(filedicts):
         columns={"Row": f"Row_{platetype}", "Column": f"Col_{platetype}"}, inplace=True
     )
     return allresults_df.reset_index(drop=True)
-

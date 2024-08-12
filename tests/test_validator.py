@@ -1,11 +1,14 @@
 #!/usr/bin/env python3
 
-import pytest
 import os
+
+import pytest
+
 from rda_toolbox.parser import filepaths_to_df
 
 rawfiles_testfolder = "./tests/rawfiles_testfolder"
 rawfile_paths = os.listdir(rawfiles_testfolder)
+
 
 # def validator():
 #     return
