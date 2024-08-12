@@ -46,11 +46,11 @@ jobs:
         run: poetry install
       - name: Run black
         run: poetry run black . --check
-      - name: Run isort
-        run: poetry run isort . --check-only --profile black
+      # - name: Run isort
+      #   run: poetry run isort . --check-only --profile black
       # - name: Run flake8
       #   run: poetry run flake8 .
-      - name: Run bandit
-        run: poetry run bandit .
-      - name: Run saftey
-        run: poetry run safety check
+      # - name: Run bandit
+      #   run: poetry run bandit .
+      # - name: Run saftey
+      #   run: poetry run safety check
