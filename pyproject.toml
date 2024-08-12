@@ -1,0 +1,21 @@
+[tool.poetry]
+name = "rda-toolbox"
+version = "0.1.0"
+description = ""
+authors = ["timoleistner <leistner.timo@googlemail.com>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.12"
+pandas = "^2.2.2"
+numpy = "^2.0.1"
+altair = "^5.4.0"
+
+
+[tool.poetry.group.test.dependencies]
+pytest = "^8.3.2"
+requests-mock = "^1.12.1"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
