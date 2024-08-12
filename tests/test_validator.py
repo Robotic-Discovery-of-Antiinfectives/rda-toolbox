@@ -13,4 +13,4 @@ rawfile_paths = os.listdir(rawfiles_testfolder)
 # def validator():
 #     return
 def test_filepaths_to_filedicts():
-    assert filepaths_to_df(rawfile_paths) == None
+    assert filepaths_to_df(rawfile_paths) is None
