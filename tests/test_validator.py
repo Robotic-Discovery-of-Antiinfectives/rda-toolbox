@@ -4,13 +4,17 @@ import os
 
 import pytest
 
-from rda_toolbox.parser import filepaths_to_df
+from rda_toolbox.parser import readerfiles_to_df
 
-rawfiles_testfolder = "./tests/rawfiles_testfolder"
-rawfile_paths = os.listdir(rawfiles_testfolder)
+testfile = os.path.abspath("./tests/rawfiles_testfolder/test.txt")
+# os.path.abspath(rawfiles_testfolder)
+# rawfile_paths = os.listdir(rawfiles_testfolder)
 
 
 # def validator():
 #     return
 def test_filepaths_to_filedicts():
-    assert filepaths_to_df(rawfile_paths) is None
+    assert readerfiles_to_df(rawfile_paths) is None
+
+readerfiles_to_df([testfile])
+

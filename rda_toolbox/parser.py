@@ -160,6 +160,8 @@ def collect_results(filedicts: list[dict]) -> pd.DataFrame:
     """
     Collect and merge results from the readerfiles.
     """
+    if not filedicts:
+        raise ValueError("No information could be read from the raw files.")
     allresults_df = pd.DataFrame(
         {"Row": [], "Column": [], "Raw Optical Density": []}
     )  # , "Layout": [], "Concentration": []})
