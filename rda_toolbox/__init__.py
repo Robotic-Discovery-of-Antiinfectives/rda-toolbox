@@ -1,3 +1,7 @@
-from parser import readerfiles_to_df
+#!/usr/bin/env python3
 
-test = ["test", "foo", "bar"]
+# expose functions here to be able to:
+# import rda_toolbox as rda
+# rda.readerfiles_to_df()
+
+from parser import readerfiles_to_df
