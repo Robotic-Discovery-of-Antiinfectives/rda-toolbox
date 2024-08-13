@@ -194,8 +194,17 @@ def collect_results(filedicts: list[dict]) -> pd.DataFrame:
     return allresults_df.reset_index(drop=True)
 
 
-def readerfiles_to_df(paths: list[str]) -> pd.DataFrame:
+def readerfiles_rawdf(paths: list[str]) -> pd.DataFrame:
     """
-    Parses files from provided filepaths and merges the results into a DataFrame.
+    Parses data from files declared by filepaths and merges the results into a DataFrame.
     """
-    return collect_results(filepaths_to_filedicts(paths))
+    filedicts = filepaths_to_filedicts(paths)
+    return collect_results(filedicts)
+
+
+def readerfiles_metadf(paths: list[str]) -> pd.DataFrame:
+    """
+    Parses metadata from files declared by filepaths and merges the results into a DataFrame.
+    """
+    filedicts = filepaths_to_filedicts(paths)
+    return collect_metadata(filedicts)
