@@ -14,7 +14,7 @@ from os.path import basename  # , exists, isfile, join
 import numpy as np
 import pandas as pd
 
-from utility import get_rows_cols
+from .utility import get_rows_cols
 
 # from functools import reduce
 
