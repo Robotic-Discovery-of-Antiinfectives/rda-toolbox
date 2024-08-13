@@ -4,27 +4,29 @@ import altair as alt
 
 
 def get_heatmap(
-    subdf, positive_controls="Medium", negative_controls="Negative Control"
+    subdf, negative_controls="Negative Control", blanks="Medium"
 ):
-    # title = subdf["Barcode 384-AST"].unique()[0]
+    """
+    - negative_controls are controls with organism + medium
+    - blanks are controls with only medium (no organism and therefore no growth)
+    """
     base = alt.Chart(
         subdf,
-        # title=alt.TitleParams("", subtitle=title) if title else ""
     ).encode(
         alt.X("Col_384:O").axis(labelAngle=0, orient="top").title(None),
         alt.Y("Row_384:O").title(None),
         tooltip=list(subdf.columns),
     )
-    negative_mean = subdf[subdf["ID"] == negative_controls][
+    blank_mean = subdf[subdf["ID"] == blanks][
         "Raw Optical Density"
     ].mean()
-    positive_mean = subdf[subdf["ID"] == positive_controls][
+    negative_mean = subdf[subdf["ID"] == negative_controls][
         "Raw Optical Density"
     ].mean()
     heatmap = base.mark_rect().encode(
         alt.Color("Raw Optical Density:Q")
         .title("Optical Density")
-        .scale(domain=[negative_mean, positive_mean]),
+        .scale(domain=[blank_mean, negative_mean]),
     )
     text = base.mark_text(
         baseline="middle", align="center", fontSize=10
@@ -33,7 +35,7 @@ def get_heatmap(
         color=alt.condition(
             alt.datum["Raw Optical Density"]
             < max(
-                subdf[subdf["ID"] == negative_controls]["Raw Optical Density"]
+                subdf[subdf["ID"] == blanks]["Raw Optical Density"]
             )
             / 2,
             alt.value("black"),
