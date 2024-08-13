@@ -4,4 +4,4 @@
 # import rda_toolbox as rda
 # rda.readerfiles_to_df()
 
-from parser import readerfiles_to_df
+from .parser import readerfiles_to_df
