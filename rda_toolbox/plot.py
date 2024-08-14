@@ -3,9 +3,7 @@
 import altair as alt
 
 
-def get_heatmap(
-    subdf, negative_controls="Negative Control", blanks="Medium"
-):
+def get_heatmap(subdf, negative_controls="Negative Control", blanks="Medium"):
     """
     - negative_controls are controls with organism + medium
     - blanks are controls with only medium (no organism and therefore no growth)
@@ -17,9 +15,7 @@ def get_heatmap(
         alt.Y("Row_384:O").title(None),
         tooltip=list(subdf.columns),
     )
-    blank_mean = subdf[subdf["ID"] == blanks][
-        "Raw Optical Density"
-    ].mean()
+    blank_mean = subdf[subdf["ID"] == blanks]["Raw Optical Density"].mean()
     negative_mean = subdf[subdf["ID"] == negative_controls][
         "Raw Optical Density"
     ].mean()
@@ -28,16 +24,11 @@ def get_heatmap(
         .title("Optical Density")
         .scale(domain=[blank_mean, negative_mean]),
     )
-    text = base.mark_text(
-        baseline="middle", align="center", fontSize=10
-    ).encode(
+    text = base.mark_text(baseline="middle", align="center", fontSize=10).encode(
         alt.Text("Raw Optical Density:Q", format=".1f"),
         color=alt.condition(
             alt.datum["Raw Optical Density"]
-            < max(
-                subdf[subdf["ID"] == blanks]["Raw Optical Density"]
-            )
-            / 2,
+            < max(subdf[subdf["ID"] == blanks]["Raw Optical Density"]) / 2,
             alt.value("black"),
             alt.value("white"),
         ),
@@ -71,8 +62,31 @@ def get_plateheatmaps(df):
         )
 
     plate_heatmaps = (
-        alt.hconcat(*plots)
-        .resolve_scale(color="independent")
-        .resolve_axis(y="shared")
+        alt.hconcat(*plots).resolve_scale(color="independent").resolve_axis(y="shared")
     )
     return plate_heatmaps
+
+
+def blank_heatmap(blank_df):
+    blank_df = blank_df.copy()[["Row_384", "Col_384", "Raw Optical Density"]]
+    title = "Blank (Only Medium) plate"
+    base = alt.Chart(
+        blank_df, title=alt.TitleParams("", subtitle=title) if title else ""
+    ).encode(
+        alt.X("Col_384:O").axis(labelAngle=0, orient="top").title(None),
+        alt.Y("Row_384:O").title(None),
+        tooltip=list(blank_df.columns),
+    )
+    heatmap = base.mark_rect().encode(
+        alt.Color("Raw Optical Density:Q")
+        .title("Optical Density")
+        .scale(domain=[0, 100])
+    )
+    text = base.mark_text(
+        baseline="middle",
+        align="center",
+        fontSize=10
+    ).encode(
+        alt.Text("Raw Optical Density:Q", format=".1f"),
+    )
+    return alt.layer(heatmap, text)
