@@ -63,4 +63,8 @@ def preprocess(raw_df: pd.DataFrame, input_df: pd.DataFrame) -> pd.DataFrame:
         .apply(background_normalize_zfactor)
         .reset_index(drop=True)
     )
-    return df
+    return df.round({
+        "Denoised Optical Density": 2,
+        "Relative Optical Density": 2,
+        "Z-Factor": 2
+    })
