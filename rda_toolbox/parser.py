@@ -197,6 +197,12 @@ def collect_results(filedicts: list[dict]) -> pd.DataFrame:
 def readerfiles_rawdf(paths: list[str]) -> pd.DataFrame:
     """
     Parses data from files declared by filepaths and merges the results into a DataFrame.
+    Example:
+        ```Python
+        import glob
+
+        rawdata_df = readerfiles_rawdf(glob.glob("path/to/raw/files/*"))
+        ```
     """
     filedicts = filepaths_to_filedicts(paths)
     return collect_results(filedicts)
