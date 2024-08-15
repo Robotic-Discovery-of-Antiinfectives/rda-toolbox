@@ -7,3 +7,4 @@
 from .parser import readerfiles_metadf, readerfiles_rawdf
 from .plot import get_plateheatmaps
 from .process import preprocess
+from .utility import mapapply_96_to_384
