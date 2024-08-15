@@ -68,3 +68,50 @@ def preprocess(raw_df: pd.DataFrame, input_df: pd.DataFrame) -> pd.DataFrame:
         "Relative Optical Density": 2,
         "Z-Factor": 2
     })
+
+
+def get_thresholded_subset(
+    df: pd.DataFrame,
+    negative_controls: str="Negative Control",
+    blanks: str="Medium",
+    blankplate_organism: str="Blank",
+    threshold=None,
+) -> pd.DataFrame:
+    """
+    Expects a DataFrame with a mic_cutoff column
+    """
+    # TODO: hardcode less columns
+
+    # Use only substance entries, no controls, no blanks etc.:
+    substance_df = df[
+        (df["ID"] != blanks)
+        & (df["ID"] != negative_controls)
+        & (df["Organism"] != blankplate_organism)
+    ]
+    # Apply threshold:
+    if threshold:
+        substance_df["mic_cutoff"] = threshold
+    else:
+        if "mic_cutoff" not in substance_df:
+            raise IndexError("Noo 'mic_cutoff' column in Input.xlsx")
+    selection = substance_df[
+        substance_df["Relative Optical Density"] < substance_df["mic_cutoff"]
+    ]
+    # Apply mean and std in case of replicates:
+    result = selection.groupby(["ID", "Organism"], as_index=False).agg(
+        {
+            "Relative Optical Density": ["mean", "std"],
+            "ID": ["first", "count"],
+            "Organism": "first",
+            "mic_cutoff": "first",
+        }
+    )
+    result.columns = [
+        "Relative Optical Density mean",
+        "Relative Optical Density std",
+        "ID",
+        "Replicates",
+        "Organism",
+        "Cutoff",
+    ]
+    return result
