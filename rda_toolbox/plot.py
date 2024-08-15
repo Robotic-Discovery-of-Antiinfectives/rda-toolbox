@@ -36,7 +36,7 @@ def get_heatmap(subdf, negative_controls="Negative Control", blanks="Medium"):
     return alt.layer(heatmap, text)
 
 
-def get_plateheatmaps(df):
+def plateheatmaps(df):
     """
     Plots heatmaps of the plates from df in a gridlike manner.
     Exclude unwanted plates, for example Blanks from the df like so
