@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+import numpy as np
 import pandas as pd
 import string
 
@@ -39,4 +40,60 @@ def generate_inputtable(readout_df = None, platetype: int = 384):
         "Organism": [f"Placeholder Organism {letter}" for letter in string.ascii_uppercase[:len(barcodes)]]
     })
     df = pd.merge(layout_df, substance_df, how="cross")
+    return df
+
+
+# TODO: Write tests for this mapping function
+def map_96_to_384(
+    df_row: pd.Series,
+    rowname: str,
+    colname: str,
+    q_name: str,
+) -> tuple[pd.Series, pd.Series]:
+    """
+    Maps the rows and columns of 4 96-Well plates into a single 384-Well plate.
+
+    Takes row, column and quadrant (each of the 96-well plates is one quadrant) of a well from 4 96-well plates and maps it to the corresponding well in a 384-well plate.
+    Returns the 384-Well plate row and column.
+    """
+    row = df_row[rowname]  # 96-well plate row
+    col = df_row[colname]  # 96-well plate column
+    quadrant = df_row[q_name]  # which of the 4 96-well plate
+
+    rowmapping = dict(
+        zip(
+            string.ascii_uppercase[0:8],
+            np.array_split(list(string.ascii_uppercase)[0:16], 8),
+        )
+    )
+    colmapping = dict(
+        zip(list(range(1, 13)), np.array_split(list(range(1, 25)), 12))
+    )
+    row_384 = rowmapping[row][0 if quadrant in [1, 2] else 1]
+    col_384 = colmapping[col][0 if quadrant in [1, 3] else 1]
+    return row_384, col_384
+
+
+def mapapply_96_to_384(
+    df: pd.DataFrame,
+    rowname: str = "Row_96",
+    colname: str = "Column_96",
+    q_name: str = "Quadrant",
+) -> pd.DataFrame:
+    """
+    Apply to a DataFrame the mapping of 96-well positions to 384-well positions.
+    The DataFrame has to have columns with:
+        - 96-well plate row positions
+        - 96-well plate column positions
+        - 96-well plate to 384-well plate quadrants
+        *(4 96-well plates fit into 1 384-well plate)*
+    """
+    df["Row_384"], df["Col_384"] = zip(
+        *df.apply(
+            lambda row: map_96_to_384(
+                row, rowname=rowname, colname=colname, q_name=q_name
+            ),
+            axis=1,
+        )
+    )
     return df
