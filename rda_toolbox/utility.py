@@ -98,3 +98,17 @@ def mapapply_96_to_384(
         )
     )
     return df
+
+
+def split_position(
+    df: pd.DataFrame,
+    position: str = "Position",
+    row: str = "Row_384",
+    col: str = "Col_384",
+) -> pd.DataFrame:
+    """
+    Split a position like "A1" into row and column positions ("A", 1) and adds them as columns to the DataFrame.
+    """
+    df[row] = df[position].apply(lambda x: str(x[0]))
+    df[col] = df[position].apply(lambda x: str(x[1:]))
+    return df
