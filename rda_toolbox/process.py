@@ -90,12 +90,12 @@ def get_thresholded_subset(
     ]
     # Apply threshold:
     if threshold:
-        substance_df["mic_cutoff"] = threshold
+        substance_df["Cutoff"] = threshold
     else:
         if "mic_cutoff" not in substance_df:
-            raise IndexError("Noo 'mic_cutoff' column in Input.xlsx")
+            raise KeyError("Noo 'mic_cutoff' column in Input.xlsx")
     selection = substance_df[
-        substance_df["Relative Optical Density"] < substance_df["mic_cutoff"]
+        substance_df["Relative Optical Density"] < substance_df["Cutoff"]
     ]
     # Apply mean and std in case of replicates:
     result = selection.groupby(["ID", "Organism"], as_index=False).agg(
@@ -103,7 +103,7 @@ def get_thresholded_subset(
             "Relative Optical Density": ["mean", "std"],
             "ID": ["first", "count"],
             "Organism": "first",
-            "mic_cutoff": "first",
+            "Cutoff": "first",
         }
     )
     result.columns = [
