@@ -43,7 +43,6 @@ def generate_inputtable(readout_df = None, platetype: int = 384):
     return df
 
 
-# TODO: Write tests for this mapping function
 def map_96_to_384(
     df_row: pd.Series,
     rowname: str,
@@ -56,6 +55,8 @@ def map_96_to_384(
     Takes row, column and quadrant (each of the 96-well plates is one quadrant) of a well from 4 96-well plates and maps it to the corresponding well in a 384-well plate.
     Returns the 384-Well plate row and column.
     """
+    # TODO: Write tests for this mapping function
+
     row = df_row[rowname]  # 96-well plate row
     col = df_row[colname]  # 96-well plate column
     quadrant = df_row[q_name]  # which of the 4 96-well plate
