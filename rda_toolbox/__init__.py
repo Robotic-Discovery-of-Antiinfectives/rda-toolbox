@@ -6,7 +6,8 @@
 
 from .parser import (
         readerfiles_metadf,
-        readerfiles_rawdf
+        readerfiles_rawdf,
+        process_inputfile,
         )
 from .plot import (
         plateheatmaps,

@@ -114,38 +114,6 @@ def split_position(
     return df
 
 
-def process_inputfile(file_object):
-    """
-    Read Input excel file which should have the following columns:
-        - Barcode
-        - Organism
-        - Row_384
-        - Col_384
-        - ID
-    Optional columns:
-        - Concentration in mg/mL (or other units)
-        - Cutoff
-    """
-    if not file_object:
-        return None
-    excel_file = pd.ExcelFile(file_object)
-    substance_df = pd.read_excel(excel_file, "substances")
-    layout_df = pd.read_excel(excel_file, "layout")
-    df = pd.merge(layout_df, substance_df, how="cross")
-    # df.rename(columns={
-    #     "barcode": "Barcode",
-    #     "replicate": "Replicate",
-    #     "organism": "Organism",
-    #     "plate_row": "Row_384",
-    #     "plate_column": "Col_384",
-    #     "id": "ID",
-    #     "concentration": "Concentration in mg/mL",
-    # }, inplace=True)
-    df["ID"] = df["ID"].astype(str)
-    return df
-
-
-
 def get_upsetplot_df(df, set_column="Organism", counts_column="ID"):
     """
     Function to obtain a correctly formatted DataFrame.
