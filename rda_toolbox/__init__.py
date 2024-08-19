@@ -4,7 +4,13 @@
 # import rda_toolbox as rda
 # rda.readerfiles_to_df()
 
-from .parser import readerfiles_metadf, readerfiles_rawdf
-from .plot import plateheatmaps
+from .parser import (
+        readerfiles_metadf,
+        readerfiles_rawdf
+        )
+from .plot import (
+        plateheatmaps,
+        UpSetAltair
+        )
 from .process import preprocess
 from .utility import mapapply_96_to_384
