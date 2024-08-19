@@ -143,3 +143,51 @@ def process_inputfile(file_object):
     # }, inplace=True)
     df["ID"] = df["ID"].astype(str)
     return df
+
+
+
+def get_upsetplot_df(df, set_column="Organism", counts_column="ID"):
+    """
+    Function to obtain a correctly formatted DataFrame.
+    According to [UpSetR-shiny](https://github.com/hms-dbmi/UpSetR-shiny)
+    this table is supposed to be encoded in binary and set up so that each column represents a set, and each row represents an element.
+    If an element is in the set it is represented as a 1 in that position. If an element is not in the set it is represented as a 0.
+
+    *Thanks to: https://stackoverflow.com/questions/37381862/get-dummies-for-pandas-column-containing-list*
+    """
+    tmp_df = (
+        df
+        .groupby(counts_column)[set_column]
+        .apply(lambda x: x.unique())
+        .reset_index()
+    )
+    dummies_df = (
+        pd.get_dummies(
+            tmp_df.join(
+                pd.Series(
+                    tmp_df[set_column]
+                    .apply(pd.Series)
+                    .stack()
+                    .reset_index(1, drop=True),
+                    name=set_column + "1",
+                )
+            )
+            .drop(set_column, axis=1)
+            .rename(columns={set_column + "1": set_column}),
+            columns=[set_column],
+        )
+        .groupby(counts_column, as_index=False)
+        .sum()
+    )
+    # remove "{set_column}_" from set column labels
+    dummies_df.columns = list(
+        map(
+            lambda x: "".join(x.split("_")[1:])
+            if x.startswith(set_column)
+            else x,
+            dummies_df.columns,
+        )
+    )
+    # remove any dots as they interfere with altairs plotting.
+    dummies_df.columns = dummies_df.columns.str.replace(".", "")
+    return dummies_df
