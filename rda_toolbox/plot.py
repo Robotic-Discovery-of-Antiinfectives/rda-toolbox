@@ -178,8 +178,10 @@ def UpSetAltair(
     if (height_ratio < 0) or (1 < height_ratio):
         print("height_ratio set to 0.5")
         height_ratio = 0.5
+    if abbre is None:
+        abbre = sets
     if len(sets) != len(abbre):
-        abbre = None
+        abbre = sets
         print(
             "Dropping the `abbre` list because the lengths of `sets` and `abbre` are not identical."
         )
@@ -200,8 +202,6 @@ def UpSetAltair(
     data = pd.melt(data, id_vars=["intersection_id", "count", "degree"])
     data = data.rename(columns={"variable": "set", "value": "is_intersect"})
 
-    if abbre == None:
-        abbre = sets
 
     set_to_abbre = pd.DataFrame(
         [[sets[i], abbre[i]] for i in range(len(sets))], columns=["set", "set_abbre"]
