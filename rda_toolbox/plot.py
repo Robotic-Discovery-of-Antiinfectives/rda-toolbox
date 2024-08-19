@@ -206,10 +206,12 @@ def UpSetAltair(
     set_to_abbre = pd.DataFrame(
         [[sets[i], abbre[i]] for i in range(len(sets))], columns=["set", "set_abbre"]
     )
-    set_to_order = pd.DataFrame(
-        [[sets[i], 1 + sets.index(sets[i])] for i in range(len(sets))],
-        columns=["set", "set_order"],
-    )
+    # set_to_order = pd.DataFrame(
+    #     [[sets[i], 1 + sets.index(sets[i])] for i in range(len(sets))],
+    #     columns=["set", "set_order"],
+    # )
+    set_to_order = data[data["is_intersect"] == 1].groupby("set").sum().reset_index().sort_values(by="count", ascending=False).filter(["set"])
+    set_to_order["set_order"] = list(range(len(sets)))
     # set_to_order["set_order"] = set_to_order["set_order"].astype(str)
 
     degree_calculation = ""
