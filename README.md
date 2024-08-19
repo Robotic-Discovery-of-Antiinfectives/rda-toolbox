@@ -20,6 +20,6 @@ This package uses [Vega-Altair](https://altair-viz.github.io/index.html) for cre
 
 - Plate Heatmaps
 - Upset plots
-  - UpSet plotting function is taken from https://github.com/hms-dbmi/upset-altair-notebook and modified
+  - `UpSetAltair` plotting function is taken from https://github.com/hms-dbmi/upset-altair-notebook and modified
   - This part of this package is licensed under MIT license.
 <!-- https://testdriven.io/blog/python-project-workflow/ -->
