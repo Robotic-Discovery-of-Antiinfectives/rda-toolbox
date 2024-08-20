@@ -131,7 +131,8 @@ def UpSetAltair(
     sets=None,
     abbre=None,
     sort_by="frequency",
-    sort_order="ascending",
+    sort_by_order="ascending",
+    inter_degree_frequency="ascending",
     width=1200,
     height=700,
     height_ratio=0.6,
@@ -155,7 +156,8 @@ def UpSetAltair(
             This list reflects the order of sets to be shown in the plots as well.
         - abbre (list): Abbreviated set names.
         - sort_by (str): "frequency" or "degree"
-        - sort_order (str): "ascending" or "descending"
+        - sort_by_order (str): "ascending" or "descending"
+        - inter_degree_frequency: "ascending" or "descending", only makes sense if sort_by="degree"
         - width (int): Vertical size of the UpSet plot.
         - height (int): Horizontal size of the UpSet plot.
         - height_ratio (float): Ratio of height between upper and under views, ranges from 0 to 1.
@@ -196,7 +198,7 @@ def UpSetAltair(
     data["intersection_id"] = data.index
     data["degree"] = data[sets].sum(axis=1)
     data = data.sort_values(
-        by=["count"], ascending=True if sort_order == "ascending" else False
+        by=["count"], ascending=True if inter_degree_frequency == "ascending" else False
     )
 
     data = pd.melt(data, id_vars=["intersection_id", "count", "degree"])
@@ -212,14 +214,12 @@ def UpSetAltair(
     # )
     set_to_order = data[data["is_intersect"] == 1].groupby("set").sum().reset_index().sort_values(by="count", ascending=False).filter(["set"])
     set_to_order["set_order"] = list(range(len(sets)))
-    # set_to_order["set_order"] = set_to_order["set_order"].astype(str)
 
     degree_calculation = ""
     for s in sets:
         degree_calculation += f"(isDefined(datum['{s}']) ? datum['{s}'] : 0)"
         if sets[-1] != s:
             degree_calculation += "+"
-    print(degree_calculation)
     """
     Selections
     """
@@ -252,8 +252,9 @@ def UpSetAltair(
     )
 
     x_sort = alt.Sort(
-        field="count" if sort_by == "frequency" else "degree", order=sort_order
+        field="count" if sort_by == "frequency" else "degree", order=sort_by_order
     )
+
     tooltip = [
         alt.Tooltip("max(count):Q", title="Cardinality"),
         alt.Tooltip("degree:Q", title="Degree"),
@@ -423,7 +424,6 @@ def UpSetAltair(
     horizontal_bar_text = horizontal_bar.mark_text(align="left", dx=2).encode(
         text="sum(count):Q"
     )
-    # horizontal_bar_text = horizontal_bar.mark_text(align="right", dx=-2).encode(text="sum(count):Q")
     horizontal_bar_chart = alt.layer(horizontal_bar, horizontal_bar_text)
     # Concat Plots
     upsetaltair = alt.vconcat(
