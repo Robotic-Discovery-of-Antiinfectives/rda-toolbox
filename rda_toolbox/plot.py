@@ -137,8 +137,7 @@ def UpSetAltair(
     height=700,
     height_ratio=0.6,
     horizontal_bar_chart_width=300,
-    color_range=["#55A8DB", "#3070B5", "#30363F", "#F1AD60", "#DF6234", "#BDC6CA"],
-    # highlight_color="#EA4667",
+    set_colors_dict=dict(),
     highlight_color="#777777",
     glyph_size=200,
     set_label_bg_size=1000,
@@ -162,7 +161,7 @@ def UpSetAltair(
         - height (int): Horizontal size of the UpSet plot.
         - height_ratio (float): Ratio of height between upper and under views, ranges from 0 to 1.
         - horizontal_bar_chart_width (int): Width of horizontal bar chart on the bottom-right.
-        - color_range (list): Color to encode sets.
+        - set_colors_dict (dict): dictionary containing the sets as keys with corresponding colors as values
         - highlight_color (str): Color to encode intersecting sets upon mouse hover.
         - glyph_size (int): Size of UpSet glyph (⬤).
         - set_label_bg_size (int): Size of label background in the horizontal bar chart.
@@ -198,22 +197,47 @@ def UpSetAltair(
     data["intersection_id"] = data.index
     data["degree"] = data[sets].sum(axis=1)
     data = data.sort_values(
-        by=["count"], ascending=True if inter_degree_frequency == "ascending" else False
+        by=["count"],
+        ascending=True if inter_degree_frequency == "ascending" else False,
     )
 
     data = pd.melt(data, id_vars=["intersection_id", "count", "degree"])
     data = data.rename(columns={"variable": "set", "value": "is_intersect"})
 
-
     set_to_abbre = pd.DataFrame(
-        [[sets[i], abbre[i]] for i in range(len(sets))], columns=["set", "set_abbre"]
+        [[sets[i], abbre[i]] for i in range(len(sets))],
+        columns=["set", "set_abbre"],
     )
-    # set_to_order = pd.DataFrame(
-    #     [[sets[i], 1 + sets.index(sets[i])] for i in range(len(sets))],
-    #     columns=["set", "set_order"],
-    # )
-    set_to_order = data[data["is_intersect"] == 1].groupby("set").sum().reset_index().sort_values(by="count", ascending=False).filter(["set"])
+
+    set_to_order = (
+        data[data["is_intersect"] == 1]
+        .groupby("set")
+        .sum()
+        .reset_index()
+        .sort_values(by="count", ascending=False)
+        .filter(["set"])
+    )
     set_to_order["set_order"] = list(range(len(sets)))
+
+    if not sorted(list(set_colors_dict.keys())) == sorted(list(sets)):
+        color_range = [
+            "#55A8DB",
+            "#3070B5",
+            "#30363F",
+            "#F1AD60",
+            "#DF6234",
+            "#BDC6CA",
+        ]
+    else:
+        colors_df = pd.DataFrame(
+            {
+                "set": list(set_colors_dict.keys()),
+                "color": list(set_colors_dict.values()),
+            }
+        )
+        color_range = pd.merge(set_to_order, colors_df, on="set").sort_values(
+            by="set_order"
+        )
 
     degree_calculation = ""
     for s in sets:
@@ -238,11 +262,14 @@ def UpSetAltair(
 
     vertical_bar_size = min(
         30,
-        width / len(data["intersection_id"].unique().tolist()) - vertical_bar_padding,
+        width / len(data["intersection_id"].unique().tolist())
+        - vertical_bar_padding,
     )
 
     main_color = "#3A3A3A"
-    brush_opacity = alt.condition(~opacity_selection, alt.value(1), alt.value(0.6))
+    brush_opacity = alt.condition(
+        ~opacity_selection, alt.value(1), alt.value(0.6)
+    )
     brush_color = alt.condition(
         color_selection, alt.value(highlight_color), alt.value(main_color)
     )
@@ -252,7 +279,8 @@ def UpSetAltair(
     )
 
     x_sort = alt.Sort(
-        field="count" if sort_by == "frequency" else "degree", order=sort_by_order
+        field="count" if sort_by == "frequency" else "degree",
+        order=sort_by_order,
     )
 
     tooltip = [
@@ -267,7 +295,10 @@ def UpSetAltair(
     base = (
         alt.Chart(data)
         .transform_pivot(
-            "set", op="max", groupby=["intersection_id", "count"], value="is_intersect"
+            "set",
+            op="max",
+            groupby=["intersection_id", "count"],
+            value="is_intersect",
         )
         .transform_aggregate(
             # count, set1, set2, ...
@@ -313,7 +344,8 @@ def UpSetAltair(
             sort=[{"field": "set_order"}],
         )
         .transform_lookup(
-            lookup="set", from_=alt.LookupData(set_to_order, "set", ["set_order"])
+            lookup="set",
+            from_=alt.LookupData(set_to_order, "set", ["set_order"]),
         )
     )
 
@@ -322,7 +354,9 @@ def UpSetAltair(
         .encode(
             x=alt.X(
                 "intersection_id:N",
-                axis=alt.Axis(grid=False, labels=False, ticks=False, domain=True),
+                axis=alt.Axis(
+                    grid=False, labels=False, ticks=False, domain=True
+                ),
                 sort=x_sort,
                 title=None,
             ),
@@ -348,13 +382,17 @@ def UpSetAltair(
         .encode(
             x=alt.X(
                 "intersection_id:N",
-                axis=alt.Axis(grid=False, labels=False, ticks=False, domain=False),
+                axis=alt.Axis(
+                    grid=False, labels=False, ticks=False, domain=False
+                ),
                 sort=x_sort,
                 title=None,
             ),
             y=alt.Y(
                 "set_order:N",
-                axis=alt.Axis(grid=False, labels=False, ticks=False, domain=False),
+                axis=alt.Axis(
+                    grid=False, labels=False, ticks=False, domain=False
+                ),
                 title=None,
             ),
             color=alt.value("#E6E6E6"),
@@ -393,14 +431,20 @@ def UpSetAltair(
             title=None,
         ),
         color=alt.Color(
-            "set:N", scale=alt.Scale(domain=sets, range=color_range), title=None
+            "set:N",
+            scale=alt.Scale(
+                domain=list(color_range["set"]),
+                range=list(color_range["color"]),
+            ),
+            title=None,
         ),
         opacity=alt.value(1),
     )
     horizontal_bar_label = horizontal_bar_label_bg.mark_text(
         align=("center" if is_show_horizontal_bar_label_bg else "center")
     ).encode(
-        text=alt.Text("set_abbre:N"), color=alt.value(horizontal_bar_label_bg_color)
+        text=alt.Text("set_abbre:N"),
+        color=alt.value(horizontal_bar_label_bg_color),
     )
     horizontal_bar_axis = (
         (horizontal_bar_label_bg + horizontal_bar_label)
@@ -416,7 +460,7 @@ def UpSetAltair(
                 "sum(count):Q",
                 axis=alt.Axis(grid=False, tickCount=3),
                 title="Set Size",
-                # scale=alt.Scale(reverse=True)
+                # scale=alt.Scale(range=color_range)
             )
         )
         .properties(width=horizontal_bar_chart_width)
@@ -441,7 +485,9 @@ def UpSetAltair(
 
     # Apply top-level configuration
     upsetaltair = upsetaltair_top_level_configuration(
-        upsetaltair, legend_orient="top", legend_symbol_size=set_label_bg_size / 2.0
+        upsetaltair,
+        legend_orient="top",
+        legend_symbol_size=set_label_bg_size / 2.0,
     ).properties(
         title={
             "text": title,
