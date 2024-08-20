@@ -186,6 +186,12 @@ def UpSetAltair(
         print(
             "Dropping the `abbre` list because the lengths of `sets` and `abbre` are not identical."
         )
+    if not set_colors_dict: # build default colors dict
+        observable10 = ["#4269d0", "#efb118", "#ff725c", "#6cc5b0", "#3ca951", "#ff8ab7", "#a463f2", "#97bbf5", "#9c6b4e", "#9498a0"]
+        if len(sets) > len(observable10):
+            raise IndexError("More sets than default colors, please provide a set_colors_dict argument")
+        else:
+            set_colors_dict = {key: value for key, value in zip(sets, observable10[:len(sets)])}
 
     """
     Data Preprocessing
@@ -208,7 +214,6 @@ def UpSetAltair(
         [[sets[i], abbre[i]] for i in range(len(sets))],
         columns=["set", "set_abbre"],
     )
-
     set_to_order = (
         data[data["is_intersect"] == 1]
         .groupby("set")
@@ -218,26 +223,6 @@ def UpSetAltair(
         .filter(["set"])
     )
     set_to_order["set_order"] = list(range(len(sets)))
-
-    if not sorted(list(set_colors_dict.keys())) == sorted(list(sets)):
-        color_range = [
-            "#55A8DB",
-            "#3070B5",
-            "#30363F",
-            "#F1AD60",
-            "#DF6234",
-            "#BDC6CA",
-        ]
-    else:
-        colors_df = pd.DataFrame(
-            {
-                "set": list(set_colors_dict.keys()),
-                "color": list(set_colors_dict.values()),
-            }
-        )
-        color_range = pd.merge(set_to_order, colors_df, on="set").sort_values(
-            by="set_order"
-        )
 
     degree_calculation = ""
     for s in sets:
@@ -433,8 +418,8 @@ def UpSetAltair(
         color=alt.Color(
             "set:N",
             scale=alt.Scale(
-                domain=list(color_range["set"]),
-                range=list(color_range["color"]),
+                domain=list(set_colors_dict.keys()),
+                range=list(set_colors_dict.values()),
             ),
             title=None,
         ),
@@ -468,6 +453,7 @@ def UpSetAltair(
     horizontal_bar_text = horizontal_bar.mark_text(align="left", dx=2).encode(
         text="sum(count):Q"
     )
+    # horizontal_bar_text = horizontal_bar.mark_text(align="right", dx=-2).encode(text="sum(count):Q")
     horizontal_bar_chart = alt.layer(horizontal_bar, horizontal_bar_text)
     # Concat Plots
     upsetaltair = alt.vconcat(
