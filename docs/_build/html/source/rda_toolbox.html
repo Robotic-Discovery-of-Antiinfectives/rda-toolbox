@@ -1,0 +1,399 @@
+<!DOCTYPE html>
+
+<html lang="en" data-content_root="../">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>rda_toolbox package &#8212; Robotic-assisted Discovery of Antiinfectives Toolbox 0.1.0 documentation</title>
+    <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=d1102ebc" />
+    <link rel="stylesheet" type="text/css" href="../_static/basic.css?v=c058f7c8" />
+    <link rel="stylesheet" type="text/css" href="../_static/alabaster.css?v=27fed22d" />
+    <script src="../_static/documentation_options.js?v=01f34227"></script>
+    <script src="../_static/doctools.js?v=9a2dae69"></script>
+    <script src="../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="Examples" href="examples.html" />
+    <link rel="prev" title="Introduction" href="intro.html" />
+   
+  <link rel="stylesheet" href="../_static/custom.css" type="text/css" />
+  
+
+  
+  
+
+  </head><body>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          
+
+          <div class="body" role="main">
+            
+  <section id="rda-toolbox-package">
+<h1>rda_toolbox package<a class="headerlink" href="#rda-toolbox-package" title="Link to this heading">¶</a></h1>
+<section id="submodules">
+<h2>Submodules<a class="headerlink" href="#submodules" title="Link to this heading">¶</a></h2>
+</section>
+<section id="module-rda_toolbox.marimo">
+<span id="rda-toolbox-marimo-module"></span><h2>rda_toolbox.marimo module<a class="headerlink" href="#module-rda_toolbox.marimo" title="Link to this heading">¶</a></h2>
+<dl class="py function">
+<dt class="sig sig-object py" id="rda_toolbox.marimo.readeruploads_rawdf">
+<span class="sig-prename descclassname"><span class="pre">rda_toolbox.marimo.</span></span><span class="sig-name descname"><span class="pre">readeruploads_rawdf</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">uploadfiles</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#rda_toolbox.marimo.readeruploads_rawdf" title="Link to this definition">¶</a></dt>
+<dd><p>Wrapper function to collect the results from marimos file upload button.
+This function is similar to readerfiles_rawdf() except that the input
+is a list of marimo.ui.file() outputs instead of a list of filepaths.</p>
+</dd></dl>
+
+</section>
+<section id="module-rda_toolbox.parser">
+<span id="rda-toolbox-parser-module"></span><h2>rda_toolbox.parser module<a class="headerlink" href="#module-rda_toolbox.parser" title="Link to this heading">¶</a></h2>
+<dl class="py function">
+<dt class="sig sig-object py" id="rda_toolbox.parser.collect_metadata">
+<span class="sig-prename descclassname"><span class="pre">rda_toolbox.parser.</span></span><span class="sig-name descname"><span class="pre">collect_metadata</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">filedicts</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">list</span><span class="p"><span class="pre">[</span></span><span class="pre">dict</span><span class="p"><span class="pre">]</span></span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">DataFrame</span></span></span><a class="headerlink" href="#rda_toolbox.parser.collect_metadata" title="Link to this definition">¶</a></dt>
+<dd><p>Helperfunction to collect the metadata from all reader files into a dataframe.</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="rda_toolbox.parser.collect_results">
+<span class="sig-prename descclassname"><span class="pre">rda_toolbox.parser.</span></span><span class="sig-name descname"><span class="pre">collect_results</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">filedicts</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">list</span><span class="p"><span class="pre">[</span></span><span class="pre">dict</span><span class="p"><span class="pre">]</span></span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">DataFrame</span></span></span><a class="headerlink" href="#rda_toolbox.parser.collect_results" title="Link to this definition">¶</a></dt>
+<dd><p>Collect and merge results from the readerfiles.</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="rda_toolbox.parser.filepaths_to_filedicts">
+<span class="sig-prename descclassname"><span class="pre">rda_toolbox.parser.</span></span><span class="sig-name descname"><span class="pre">filepaths_to_filedicts</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">filepaths</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">list</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">]</span></span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">list</span><span class="p"><span class="pre">[</span></span><span class="pre">dict</span><span class="p"><span class="pre">]</span></span></span></span><a class="headerlink" href="#rda_toolbox.parser.filepaths_to_filedicts" title="Link to this definition">¶</a></dt>
+<dd><p>Wrapper function to obtain a list of dictionaries which contain the raw files information like</p>
+<ul class="simple">
+<li><dl class="simple">
+<dt>different entries of metadata</dt><dd><ul>
+<li><p>Plate Type</p></li>
+<li><p>Barcode</p></li>
+<li><p>Date</p></li>
+<li><p>Time</p></li>
+<li><p>etc.</p></li>
+</ul>
+</dd>
+</dl>
+</li>
+<li><p>Raw Optical Density (DataFrame)</p></li>
+<li><p>Concentration (DataFrame)</p></li>
+<li><p>Layout (DataFrame)</p></li>
+</ul>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="rda_toolbox.parser.process_inputfile">
+<span class="sig-prename descclassname"><span class="pre">rda_toolbox.parser.</span></span><span class="sig-name descname"><span class="pre">process_inputfile</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">file_object</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#rda_toolbox.parser.process_inputfile" title="Link to this definition">¶</a></dt>
+<dd><dl class="simple">
+<dt>Read Input excel file which should have the following columns:</dt><dd><ul class="simple">
+<li><p>Barcode</p></li>
+<li><p>Organism</p></li>
+<li><p>Row_384</p></li>
+<li><p>Col_384</p></li>
+<li><p>ID</p></li>
+</ul>
+</dd>
+<dt>Optional columns:</dt><dd><ul class="simple">
+<li><p>Concentration in mg/mL (or other units)</p></li>
+<li><p>Cutoff</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="rda_toolbox.parser.readerfile_parser">
+<span class="sig-prename descclassname"><span class="pre">rda_toolbox.parser.</span></span><span class="sig-name descname"><span class="pre">readerfile_parser</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">filename</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">file_object</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">StringIO</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">resulttable_header</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'Results'</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">dict</span></span></span><a class="headerlink" href="#rda_toolbox.parser.readerfile_parser" title="Link to this definition">¶</a></dt>
+<dd><p>Parser for files created by the BioTek Cytation C10 Confocal Imaging Reader.</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="rda_toolbox.parser.readerfiles_metadf">
+<span class="sig-prename descclassname"><span class="pre">rda_toolbox.parser.</span></span><span class="sig-name descname"><span class="pre">readerfiles_metadf</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">paths</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">list</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">]</span></span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">DataFrame</span></span></span><a class="headerlink" href="#rda_toolbox.parser.readerfiles_metadf" title="Link to this definition">¶</a></dt>
+<dd><p>Parses metadata from files declared by filepaths and merges the results into a DataFrame.</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="rda_toolbox.parser.readerfiles_rawdf">
+<span class="sig-prename descclassname"><span class="pre">rda_toolbox.parser.</span></span><span class="sig-name descname"><span class="pre">readerfiles_rawdf</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">paths</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">list</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">]</span></span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">DataFrame</span></span></span><a class="headerlink" href="#rda_toolbox.parser.readerfiles_rawdf" title="Link to this definition">¶</a></dt>
+<dd><p>Parses data from files declared by filepaths and merges the results into a DataFrame
+:param paths: A list of filepaths corresponding to the raw reader files generated by Cytation10
+:type paths: list[str]
+:return: A DataFrame in tidy and long format with the raw readerfile contents
+:rtype: pd.DataFrame</p>
+<dl class="field-list">
+<dt class="field-odd">Example<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a href="#id1"><span class="problematic" id="id2">``</span></a><a href="#id3"><span class="problematic" id="id4">`</span></a>Python
+import glob</p>
+<p>rawdata_df = readerfiles_rawdf(glob.glob(“path/to/raw/files/<a href="#id5"><span class="problematic" id="id6">*</span></a>”))
+<a href="#id7"><span class="problematic" id="id8">``</span></a><a href="#id9"><span class="problematic" id="id10">`</span></a></p>
+</dd>
+</dl>
+</dd></dl>
+
+</section>
+<section id="module-rda_toolbox.plot">
+<span id="rda-toolbox-plot-module"></span><h2>rda_toolbox.plot module<a class="headerlink" href="#module-rda_toolbox.plot" title="Link to this heading">¶</a></h2>
+<dl class="py function">
+<dt class="sig sig-object py" id="rda_toolbox.plot.UpSetAltair">
+<span class="sig-prename descclassname"><span class="pre">rda_toolbox.plot.</span></span><span class="sig-name descname"><span class="pre">UpSetAltair</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">title</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">''</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">subtitle</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">''</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">sets</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">abbre</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">sort_by</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'frequency'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">sort_by_order</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'ascending'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">inter_degree_frequency</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'ascending'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">width</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1200</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">height</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">700</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">height_ratio</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.6</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">horizontal_bar_chart_width</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">300</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">set_colors_dict</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">{}</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">highlight_color</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'#777777'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">glyph_size</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">200</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">set_label_bg_size</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1000</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">line_connection_size</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">2</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">horizontal_bar_size</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">20</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">vertical_bar_label_size</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">16</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">vertical_bar_padding</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">20</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#rda_toolbox.plot.UpSetAltair" title="Link to this definition">¶</a></dt>
+<dd><p>This function generates Altair-based interactive UpSet plots.</p>
+<dl class="simple">
+<dt>Parameters:</dt><dd><ul class="simple">
+<li><dl class="simple">
+<dt>data (pandas.DataFrame): Tabular data containing the membership of each element (row) in</dt><dd><p>exclusive intersecting sets (column).</p>
+</dd>
+</dl>
+</li>
+<li><dl class="simple">
+<dt>sets (list): List of set names of interest to show in the UpSet plots.</dt><dd><p>This list reflects the order of sets to be shown in the plots as well.</p>
+</dd>
+</dl>
+</li>
+<li><p>abbre (list): Abbreviated set names.</p></li>
+<li><p>sort_by (str): “frequency” or “degree”</p></li>
+<li><p>sort_by_order (str): “ascending” or “descending”</p></li>
+<li><p>inter_degree_frequency: “ascending” or “descending”, only makes sense if sort_by=”degree”</p></li>
+<li><p>width (int): Vertical size of the UpSet plot.</p></li>
+<li><p>height (int): Horizontal size of the UpSet plot.</p></li>
+<li><p>height_ratio (float): Ratio of height between upper and under views, ranges from 0 to 1.</p></li>
+<li><p>horizontal_bar_chart_width (int): Width of horizontal bar chart on the bottom-right.</p></li>
+<li><p>set_colors_dict (dict): dictionary containing the sets as keys with corresponding colors as values</p></li>
+<li><p>highlight_color (str): Color to encode intersecting sets upon mouse hover.</p></li>
+<li><p>glyph_size (int): Size of UpSet glyph (⬤).</p></li>
+<li><p>set_label_bg_size (int): Size of label background in the horizontal bar chart.</p></li>
+<li><p>line_connection_size (int): width of lines in matrix view.</p></li>
+<li><p>horizontal_bar_size (int): Height of bars in the horizontal bar chart.</p></li>
+<li><p>vertical_bar_label_size (int): Font size of texts in the vertical bar chart on the top.</p></li>
+<li><p>vertical_bar_padding (int): Gap between a pair of bars in the vertical bar charts.</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="rda_toolbox.plot.blank_heatmap">
+<span class="sig-prename descclassname"><span class="pre">rda_toolbox.plot.</span></span><span class="sig-name descname"><span class="pre">blank_heatmap</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">blank_df</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#rda_toolbox.plot.blank_heatmap" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="rda_toolbox.plot.get_heatmap">
+<span class="sig-prename descclassname"><span class="pre">rda_toolbox.plot.</span></span><span class="sig-name descname"><span class="pre">get_heatmap</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">subdf</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">negative_controls</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'Negative</span> <span class="pre">Control'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">blanks</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'Medium'</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#rda_toolbox.plot.get_heatmap" title="Link to this definition">¶</a></dt>
+<dd><ul class="simple">
+<li><p>negative_controls are controls with organism + medium</p></li>
+<li><p>blanks are controls with only medium (no organism and therefore no growth)</p></li>
+</ul>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="rda_toolbox.plot.plateheatmaps">
+<span class="sig-prename descclassname"><span class="pre">rda_toolbox.plot.</span></span><span class="sig-name descname"><span class="pre">plateheatmaps</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">df</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#rda_toolbox.plot.plateheatmaps" title="Link to this definition">¶</a></dt>
+<dd><p>Plots heatmaps of the plates from df in a gridlike manner.
+Exclude unwanted plates, for example Blanks from the df like so</p>
+<blockquote>
+<div><p><cite>df[df[“Organism”] != “Blank”]</cite></p>
+</div></blockquote>
+<p>before plotting, otherwise it will appear as an extra plate.</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="rda_toolbox.plot.upsetaltair_top_level_configuration">
+<span class="sig-prename descclassname"><span class="pre">rda_toolbox.plot.</span></span><span class="sig-name descname"><span class="pre">upsetaltair_top_level_configuration</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">base</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">legend_orient</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'top-left'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">legend_symbol_size</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">30</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#rda_toolbox.plot.upsetaltair_top_level_configuration" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</section>
+<section id="module-rda_toolbox.process">
+<span id="rda-toolbox-process-module"></span><h2>rda_toolbox.process module<a class="headerlink" href="#module-rda_toolbox.process" title="Link to this heading">¶</a></h2>
+<dl class="py function">
+<dt class="sig sig-object py" id="rda_toolbox.process.background_normalize_zfactor">
+<span class="sig-prename descclassname"><span class="pre">rda_toolbox.process.</span></span><span class="sig-name descname"><span class="pre">background_normalize_zfactor</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">grp</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">DataFrame</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">blanks</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'Medium'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">negative_controls</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'Negative</span> <span class="pre">Control'</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">DataFrame</span></span></span><a class="headerlink" href="#rda_toolbox.process.background_normalize_zfactor" title="Link to this definition">¶</a></dt>
+<dd><p>This function is supposed to be applied to a grouped DataFrame.
+It does the following operations:</p>
+<blockquote>
+<div><ul class="simple">
+<li><p>Background subtraction by subtracting the mean of the blanks per plate</p></li>
+<li><p>Normalization by applying max-normalization using the ‘Negative Controls’</p></li>
+<li><p>Z-Factor calculation using negative controls and blanks</p></li>
+</ul>
+</div></blockquote>
+<p><em>`negative_controls` are controls with organism (e.g. bacteria) and medium</em>
+<em>and are labeled in the input DataFrame as ‘Negative Controls’.</em>
+<em>`blanks` are controls with only medium and are labeled</em>
+<em>in the input DataFrame as ‘Medium’.</em></p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="rda_toolbox.process.get_thresholded_subset">
+<span class="sig-prename descclassname"><span class="pre">rda_toolbox.process.</span></span><span class="sig-name descname"><span class="pre">get_thresholded_subset</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">df</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">DataFrame</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">negative_controls</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'Negative</span> <span class="pre">Control'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">blanks</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'Medium'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">blankplate_organism</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'Blank'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">threshold</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">DataFrame</span></span></span><a class="headerlink" href="#rda_toolbox.process.get_thresholded_subset" title="Link to this definition">¶</a></dt>
+<dd><p>Expects a DataFrame with a mic_cutoff column</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="rda_toolbox.process.max_normalization">
+<span class="sig-prename descclassname"><span class="pre">rda_toolbox.process.</span></span><span class="sig-name descname"><span class="pre">max_normalization</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">x</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">maximum</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#rda_toolbox.process.max_normalization" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="rda_toolbox.process.minmax_normalization">
+<span class="sig-prename descclassname"><span class="pre">rda_toolbox.process.</span></span><span class="sig-name descname"><span class="pre">minmax_normalization</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">x</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">minimum</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">maximum</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#rda_toolbox.process.minmax_normalization" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="rda_toolbox.process.preprocess">
+<span class="sig-prename descclassname"><span class="pre">rda_toolbox.process.</span></span><span class="sig-name descname"><span class="pre">preprocess</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">raw_df</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">DataFrame</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">input_df</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">DataFrame</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">DataFrame</span></span></span><a class="headerlink" href="#rda_toolbox.process.preprocess" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="rda_toolbox.process.zfactor">
+<span class="sig-prename descclassname"><span class="pre">rda_toolbox.process.</span></span><span class="sig-name descname"><span class="pre">zfactor</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">positive_controls</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">negative_controls</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#rda_toolbox.process.zfactor" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</section>
+<section id="module-rda_toolbox.utility">
+<span id="rda-toolbox-utility-module"></span><h2>rda_toolbox.utility module<a class="headerlink" href="#module-rda_toolbox.utility" title="Link to this heading">¶</a></h2>
+<dl class="py function">
+<dt class="sig sig-object py" id="rda_toolbox.utility.generate_inputtable">
+<span class="sig-prename descclassname"><span class="pre">rda_toolbox.utility.</span></span><span class="sig-name descname"><span class="pre">generate_inputtable</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">readout_df</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">platetype</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">384</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#rda_toolbox.utility.generate_inputtable" title="Link to this definition">¶</a></dt>
+<dd><p>Generates an input table for the corresponding readout dataframe.
+If not readout df is provided, create a minimal input df.</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="rda_toolbox.utility.get_rows_cols">
+<span class="sig-prename descclassname"><span class="pre">rda_toolbox.utility.</span></span><span class="sig-name descname"><span class="pre">get_rows_cols</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">platetype</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">tuple</span><span class="p"><span class="pre">[</span></span><span class="pre">int</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">int</span><span class="p"><span class="pre">]</span></span></span></span><a class="headerlink" href="#rda_toolbox.utility.get_rows_cols" title="Link to this definition">¶</a></dt>
+<dd><p>Obtain number of rows and columns as tuple for corresponding plate type.</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="rda_toolbox.utility.get_upsetplot_df">
+<span class="sig-prename descclassname"><span class="pre">rda_toolbox.utility.</span></span><span class="sig-name descname"><span class="pre">get_upsetplot_df</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">df</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">set_column</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'Organism'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">counts_column</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'ID'</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#rda_toolbox.utility.get_upsetplot_df" title="Link to this definition">¶</a></dt>
+<dd><p>Function to obtain a correctly formatted DataFrame.
+According to [UpSetR-shiny](<a class="reference external" href="https://github.com/hms-dbmi/UpSetR-shiny">https://github.com/hms-dbmi/UpSetR-shiny</a>)
+this table is supposed to be encoded in binary and set up so that each column represents a set, and each row represents an element.
+If an element is in the set it is represented as a 1 in that position. If an element is not in the set it is represented as a 0.</p>
+<p><em>Thanks to: https://stackoverflow.com/questions/37381862/get-dummies-for-pandas-column-containing-list</em></p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="rda_toolbox.utility.map_96_to_384">
+<span class="sig-prename descclassname"><span class="pre">rda_toolbox.utility.</span></span><span class="sig-name descname"><span class="pre">map_96_to_384</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">df_row</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Series</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rowname</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">colname</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">q_name</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">tuple</span><span class="p"><span class="pre">[</span></span><span class="pre">Series</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">Series</span><span class="p"><span class="pre">]</span></span></span></span><a class="headerlink" href="#rda_toolbox.utility.map_96_to_384" title="Link to this definition">¶</a></dt>
+<dd><p>Maps the rows and columns of 4 96-Well plates into a single 384-Well plate.</p>
+<p>Takes row, column and quadrant (each of the 96-well plates is one quadrant) of a well from 4 96-well plates and maps it to the corresponding well in a 384-well plate.
+Returns the 384-Well plate row and column.</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="rda_toolbox.utility.mapapply_96_to_384">
+<span class="sig-prename descclassname"><span class="pre">rda_toolbox.utility.</span></span><span class="sig-name descname"><span class="pre">mapapply_96_to_384</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">df</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">DataFrame</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rowname</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'Row_96'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">colname</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'Column_96'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">q_name</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'Quadrant'</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">DataFrame</span></span></span><a class="headerlink" href="#rda_toolbox.utility.mapapply_96_to_384" title="Link to this definition">¶</a></dt>
+<dd><p>Apply to a DataFrame the mapping of 96-well positions to 384-well positions.
+The DataFrame has to have columns with:</p>
+<blockquote>
+<div><ul class="simple">
+<li><p>96-well plate row positions</p></li>
+<li><p>96-well plate column positions</p></li>
+<li><p>96-well plate to 384-well plate quadrants</p></li>
+</ul>
+<p><em>(4 96-well plates fit into 1 384-well plate)</em></p>
+</div></blockquote>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="rda_toolbox.utility.split_position">
+<span class="sig-prename descclassname"><span class="pre">rda_toolbox.utility.</span></span><span class="sig-name descname"><span class="pre">split_position</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">df</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">DataFrame</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">position</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'Position'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">row</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'Row_384'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">col</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'Col_384'</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">DataFrame</span></span></span><a class="headerlink" href="#rda_toolbox.utility.split_position" title="Link to this definition">¶</a></dt>
+<dd><p>Split a position like “A1” into row and column positions (“A”, 1) and adds them as columns to the DataFrame.</p>
+</dd></dl>
+
+</section>
+<section id="module-rda_toolbox">
+<span id="module-contents"></span><h2>Module contents<a class="headerlink" href="#module-rda_toolbox" title="Link to this heading">¶</a></h2>
+</section>
+</section>
+
+
+          </div>
+          
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="Main">
+        <div class="sphinxsidebarwrapper">
+<h1 class="logo"><a href="../index.html">Robotic-assisted Discovery of Antiinfectives Toolbox</a></h1>
+
+
+
+
+
+
+
+
+
+<search id="searchbox" style="display: none" role="search">
+    <div class="searchformwrapper">
+    <form class="search" action="../search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="Search"/>
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</search>
+<script>document.getElementById('searchbox').style.display = "block"</script><h3>Navigation</h3>
+<p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="intro.html">Introduction</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">rda_toolbox package</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#submodules">Submodules</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#module-rda_toolbox.marimo">rda_toolbox.marimo module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#module-rda_toolbox.parser">rda_toolbox.parser module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#module-rda_toolbox.plot">rda_toolbox.plot module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#module-rda_toolbox.process">rda_toolbox.process module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#module-rda_toolbox.utility">rda_toolbox.utility module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#module-rda_toolbox">Module contents</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="examples.html">Examples</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="modules.html">rda_toolbox</a><ul class="current">
+<li class="toctree-l2 current"><a class="current reference internal" href="#">rda_toolbox package</a></li>
+</ul>
+</li>
+</ul>
+
+<div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="../index.html">Documentation overview</a><ul>
+      <li>Previous: <a href="intro.html" title="previous chapter">Introduction</a></li>
+      <li>Next: <a href="examples.html" title="next chapter">Examples</a></li>
+  </ul></li>
+</ul>
+</div>
+
+
+
+
+
+
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &#169;2024, Timo Leistner.
+      
+      |
+      Powered by <a href="https://www.sphinx-doc.org/">Sphinx 8.0.2</a>
+      &amp; <a href="https://alabaster.readthedocs.io">Alabaster 1.0.0</a>
+      
+      |
+      <a href="../_sources/source/rda_toolbox.rst.txt"
+          rel="nofollow">Page source</a>
+    </div>
+
+    
+
+    
+  </body>
+</html>
