@@ -193,6 +193,9 @@ def UpSetAltair(
         else:
             set_colors_dict = {key: value for key, value in zip(sets, observable10[:len(sets)])}
 
+    # filter set_colors_dict with the sets which are actually in the data df (sets)
+    # this might be needed if set_colors_dict if more comprehensive than the data
+    set_colors_dict = {key: value for key, value in set_colors_dict.items() if key in sets}
     """
     Data Preprocessing
     """
