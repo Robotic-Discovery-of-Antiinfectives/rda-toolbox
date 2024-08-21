@@ -41,7 +41,7 @@ def plateheatmaps(df):
     """
     Plots heatmaps of the plates from df in a gridlike manner.
     Exclude unwanted plates, for example Blanks from the df like so
-        `df[df["Organism"] != "Blank"]`
+    `df[df["Organism"] != "Blank"]`
     before plotting, otherwise it will appear as an extra plate.
     """
     plots = []

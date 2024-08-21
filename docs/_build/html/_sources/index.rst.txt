@@ -26,6 +26,5 @@ documentation for details.
    :caption: Contents:
 
    source/intro
-   source/rda_toolbox
    source/examples
    source/modules

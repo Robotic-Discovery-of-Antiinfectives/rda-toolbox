@@ -14,8 +14,7 @@
     <script src="../_static/sphinx_highlight.js?v=dc90522c"></script>
     <link rel="index" title="Index" href="../genindex.html" />
     <link rel="search" title="Search" href="../search.html" />
-    <link rel="next" title="Examples" href="examples.html" />
-    <link rel="prev" title="Introduction" href="intro.html" />
+    <link rel="prev" title="rda_toolbox" href="modules.html" />
    
   <link rel="stylesheet" href="../_static/custom.css" type="text/css" />
   
@@ -193,11 +192,9 @@ import glob</p>
 <dt class="sig sig-object py" id="rda_toolbox.plot.plateheatmaps">
 <span class="sig-prename descclassname"><span class="pre">rda_toolbox.plot.</span></span><span class="sig-name descname"><span class="pre">plateheatmaps</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">df</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#rda_toolbox.plot.plateheatmaps" title="Link to this definition">¶</a></dt>
 <dd><p>Plots heatmaps of the plates from df in a gridlike manner.
-Exclude unwanted plates, for example Blanks from the df like so</p>
-<blockquote>
-<div><p><cite>df[df[“Organism”] != “Blank”]</cite></p>
-</div></blockquote>
-<p>before plotting, otherwise it will appear as an extra plate.</p>
+Exclude unwanted plates, for example Blanks from the df like so
+<cite>df[df[“Organism”] != “Blank”]</cite>
+before plotting, otherwise it will appear as an extra plate.</p>
 </dd></dl>
 
 <dl class="py function">
@@ -212,14 +209,10 @@ Exclude unwanted plates, for example Blanks from the df like so</p>
 <dt class="sig sig-object py" id="rda_toolbox.process.background_normalize_zfactor">
 <span class="sig-prename descclassname"><span class="pre">rda_toolbox.process.</span></span><span class="sig-name descname"><span class="pre">background_normalize_zfactor</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">grp</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">DataFrame</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">blanks</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'Medium'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">negative_controls</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'Negative</span> <span class="pre">Control'</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">DataFrame</span></span></span><a class="headerlink" href="#rda_toolbox.process.background_normalize_zfactor" title="Link to this definition">¶</a></dt>
 <dd><p>This function is supposed to be applied to a grouped DataFrame.
-It does the following operations:</p>
-<blockquote>
-<div><ul class="simple">
-<li><p>Background subtraction by subtracting the mean of the blanks per plate</p></li>
-<li><p>Normalization by applying max-normalization using the ‘Negative Controls’</p></li>
-<li><p>Z-Factor calculation using negative controls and blanks</p></li>
-</ul>
-</div></blockquote>
+It does the following operations:
+- Background subtraction by subtracting the mean of the blanks per plate
+- Normalization by applying max-normalization using the ‘Negative Controls’
+- Z-Factor calculation using negative controls and blanks</p>
 <p><em>`negative_controls` are controls with organism (e.g. bacteria) and medium</em>
 <em>and are labeled in the input DataFrame as ‘Negative Controls’.</em>
 <em>`blanks` are controls with only medium and are labeled</em>
@@ -290,15 +283,11 @@ Returns the 384-Well plate row and column.</p>
 <dt class="sig sig-object py" id="rda_toolbox.utility.mapapply_96_to_384">
 <span class="sig-prename descclassname"><span class="pre">rda_toolbox.utility.</span></span><span class="sig-name descname"><span class="pre">mapapply_96_to_384</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">df</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">DataFrame</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rowname</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'Row_96'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">colname</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'Column_96'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">q_name</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'Quadrant'</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">DataFrame</span></span></span><a class="headerlink" href="#rda_toolbox.utility.mapapply_96_to_384" title="Link to this definition">¶</a></dt>
 <dd><p>Apply to a DataFrame the mapping of 96-well positions to 384-well positions.
-The DataFrame has to have columns with:</p>
-<blockquote>
-<div><ul class="simple">
-<li><p>96-well plate row positions</p></li>
-<li><p>96-well plate column positions</p></li>
-<li><p>96-well plate to 384-well plate quadrants</p></li>
-</ul>
-<p><em>(4 96-well plates fit into 1 384-well plate)</em></p>
-</div></blockquote>
+The DataFrame has to have columns with:
+- 96-well plate row positions
+- 96-well plate column positions
+- 96-well plate to 384-well plate quadrants
+<em>(4 96-well plates fit into 1 384-well plate)</em></p>
 </dd></dl>
 
 <dl class="py function">
@@ -342,16 +331,6 @@ The DataFrame has to have columns with:</p>
 <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
 <ul class="current">
 <li class="toctree-l1"><a class="reference internal" href="intro.html">Introduction</a></li>
-<li class="toctree-l1 current"><a class="current reference internal" href="#">rda_toolbox package</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="#submodules">Submodules</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#module-rda_toolbox.marimo">rda_toolbox.marimo module</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#module-rda_toolbox.parser">rda_toolbox.parser module</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#module-rda_toolbox.plot">rda_toolbox.plot module</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#module-rda_toolbox.process">rda_toolbox.process module</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#module-rda_toolbox.utility">rda_toolbox.utility module</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#module-rda_toolbox">Module contents</a></li>
-</ul>
-</li>
 <li class="toctree-l1"><a class="reference internal" href="examples.html">Examples</a></li>
 <li class="toctree-l1 current"><a class="reference internal" href="modules.html">rda_toolbox</a><ul class="current">
 <li class="toctree-l2 current"><a class="current reference internal" href="#">rda_toolbox package</a></li>
@@ -363,8 +342,9 @@ The DataFrame has to have columns with:</p>
 <h3>Related Topics</h3>
 <ul>
   <li><a href="../index.html">Documentation overview</a><ul>
-      <li>Previous: <a href="intro.html" title="previous chapter">Introduction</a></li>
-      <li>Next: <a href="examples.html" title="next chapter">Examples</a></li>
+  <li><a href="modules.html">rda_toolbox</a><ul>
+      <li>Previous: <a href="modules.html" title="previous chapter">rda_toolbox</a></li>
+  </ul></li>
   </ul></li>
 </ul>
 </div>

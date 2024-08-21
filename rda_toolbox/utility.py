@@ -81,13 +81,12 @@ def mapapply_96_to_384(
     colname: str = "Column_96",
     q_name: str = "Quadrant",
 ) -> pd.DataFrame:
-    """
-    Apply to a DataFrame the mapping of 96-well positions to 384-well positions.
+    """Apply to a DataFrame the mapping of 96-well positions to 384-well positions.
     The DataFrame has to have columns with:
-        - 96-well plate row positions
-        - 96-well plate column positions
-        - 96-well plate to 384-well plate quadrants
-        *(4 96-well plates fit into 1 384-well plate)*
+    - 96-well plate row positions
+    - 96-well plate column positions
+    - 96-well plate to 384-well plate quadrants
+    *(4 96-well plates fit into 1 384-well plate)*
     """
     df["Row_384"], df["Col_384"] = zip(
         *df.apply(

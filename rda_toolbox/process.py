@@ -26,9 +26,9 @@ def background_normalize_zfactor(
     """
     This function is supposed to be applied to a grouped DataFrame.
     It does the following operations:
-        - Background subtraction by subtracting the mean of the blanks per plate
-        - Normalization by applying max-normalization using the 'Negative Controls'
-        - Z-Factor calculation using negative controls and blanks
+    - Background subtraction by subtracting the mean of the blanks per plate
+    - Normalization by applying max-normalization using the 'Negative Controls'
+    - Z-Factor calculation using negative controls and blanks
 
     *`negative_controls` are controls with organism (e.g. bacteria) and medium*
     *and are labeled in the input DataFrame as 'Negative Controls'.*
