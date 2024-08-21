@@ -12,6 +12,10 @@ The aim is to provide functions to help evaluate the following assays:
 ### Usage
 `pip install rda-toolbox`
 
+or
+
+`pip install "git+https://github.com/Robotic-Discovery-of-Antiinfectives/rda-toolbox.git"`
+
 
 ```Python
 #!/usr/bin/env python3
