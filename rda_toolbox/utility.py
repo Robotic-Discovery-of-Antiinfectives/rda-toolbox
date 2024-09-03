@@ -54,6 +54,7 @@ def map_96_to_384(
 
     Takes row, column and quadrant (each of the 96-well plates is one quadrant) of a well from 4 96-well plates and maps it to the corresponding well in a 384-well plate.
     Returns the 384-Well plate row and column.
+    Example: `df["Row_384"], df["Col_384"] = zip(*df.apply(map_96_to_384, axis=1))`
     """
     # TODO: Write tests for this mapping function
 
