@@ -107,6 +107,7 @@ def split_position(
 ) -> pd.DataFrame:
     """
     Split a position like "A1" into row and column positions ("A", 1) and adds them as columns to the DataFrame.
+    Hint: Remove NAs before applying this function. E.g. `split_position(df.dropna(subset="Position"))`
     """
     df[row] = df[position].apply(lambda x: str(x[0]))
     df[col] = df[position].apply(lambda x: str(x[1:]))
