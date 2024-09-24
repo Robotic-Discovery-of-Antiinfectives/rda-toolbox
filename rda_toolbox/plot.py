@@ -4,11 +4,7 @@ import altair as alt
 import pandas as pd
 
 
-def get_heatmap(subdf, negative_controls="Negative Control", blanks="Medium"):
-    """
-    - negative_controls are controls with organism + medium
-    - blanks are controls with only medium (no organism and therefore no growth)
-    """
+def get_heatmap(subdf, substance_id, measurement, negative_controls, blanks):
     base = alt.Chart(
         subdf,
     ).encode(
@@ -16,20 +12,18 @@ def get_heatmap(subdf, negative_controls="Negative Control", blanks="Medium"):
         alt.Y("Row_384:O").title(None),
         tooltip=list(subdf.columns),
     )
-    blank_mean = subdf[subdf["ID"] == blanks]["Raw Optical Density"].mean()
-    negative_mean = subdf[subdf["ID"] == negative_controls][
-        "Raw Optical Density"
-    ].mean()
+    blank_mean = subdf[subdf[substance_id] == blanks][measurement].mean()
+    negative_mean = subdf[subdf[substance_id] == negative_controls][measurement].mean()
     heatmap = base.mark_rect().encode(
-        alt.Color("Raw Optical Density:Q")
+        alt.Color(f"{measurement}:Q")
         .title("Optical Density")
         .scale(domain=[blank_mean, negative_mean]),
     )
-    text = base.mark_text(baseline="middle", align="center", fontSize=10).encode(
-        alt.Text("Raw Optical Density:Q", format=".1f"),
+    text = base.mark_text(baseline="middle", align="center", fontSize=7).encode(
+        alt.Text(f"{measurement}:Q", format=".1f"),
         color=alt.condition(
-            alt.datum["Raw Optical Density"]
-            < max(subdf[subdf["ID"] == blanks]["Raw Optical Density"]) / 2,
+            alt.datum[measurement]
+            < max(subdf[subdf[substance_id] == negative_controls][measurement]) / 2,
             alt.value("black"),
             alt.value("white"),
         ),
@@ -37,20 +31,39 @@ def get_heatmap(subdf, negative_controls="Negative Control", blanks="Medium"):
     return alt.layer(heatmap, text)
 
 
-def plateheatmaps(df):
+def plateheatmaps(
+    df,
+    substance_id="ID",
+    measurement="Raw Optical Density",
+    barcode="Barcode",
+    negative_control="Negative Control",
+    blank="Medium",
+):
     """
+    - df: Dataframe with relevant data
+    - ID: column name in df containing the unique substance id
+    - measurement: column name in df with the measurements to colorize via heatmaps
+    - negative_control: controls with organism + medium
+    - blank: controls with only medium (no organism and therefore no growth)
     Plots heatmaps of the plates from df in a gridlike manner.
     Exclude unwanted plates, for example Blanks from the df like so
     `df[df["Organism"] != "Blank"]`
     before plotting, otherwise it will appear as an extra plate.
     """
+    df["Col_384"] = df["Col_384"].astype(int)
     plots = []
     for _, _organism_df in df.groupby("Organism"):
         plots.append(
-            get_heatmap(_organism_df)
+            get_heatmap(
+                _organism_df,
+                substance_id,
+                measurement,
+                negative_control,
+                blank,
+            )
             .facet(
-                # row=alt.Row("Barcode 384-AST:N", sort=ast_keys),
-                row=alt.Row("Barcode:N"),
+                row=alt.Row(f"{barcode}:N"),
+                column=alt.Column(f"Replicate:N"),
                 title=alt.Title(
                     _organism_df["Organism"].unique()[0],
                     orient="top",
@@ -186,16 +199,33 @@ def UpSetAltair(
         print(
             "Dropping the `abbre` list because the lengths of `sets` and `abbre` are not identical."
         )
-    if not set_colors_dict: # build default colors dict
-        observable10 = ["#4269d0", "#efb118", "#ff725c", "#6cc5b0", "#3ca951", "#ff8ab7", "#a463f2", "#97bbf5", "#9c6b4e", "#9498a0"]
+    if not set_colors_dict:  # build default colors dict
+        observable10 = [
+            "#4269d0",
+            "#efb118",
+            "#ff725c",
+            "#6cc5b0",
+            "#3ca951",
+            "#ff8ab7",
+            "#a463f2",
+            "#97bbf5",
+            "#9c6b4e",
+            "#9498a0",
+        ]
         if len(sets) > len(observable10):
-            raise IndexError("More sets than default colors, please provide a set_colors_dict argument")
+            raise IndexError(
+                "More sets than default colors, please provide a set_colors_dict argument"
+            )
         else:
-            set_colors_dict = {key: value for key, value in zip(sets, observable10[:len(sets)])}
+            set_colors_dict = {
+                key: value for key, value in zip(sets, observable10[: len(sets)])
+            }
 
     # filter set_colors_dict with the sets which are actually in the data df (sets)
     # this might be needed if set_colors_dict if more comprehensive than the data
-    set_colors_dict = {key: value for key, value in set_colors_dict.items() if key in sets}
+    set_colors_dict = {
+        key: value for key, value in set_colors_dict.items() if key in sets
+    }
     """
     Data Preprocessing
     """
@@ -250,14 +280,11 @@ def UpSetAltair(
 
     vertical_bar_size = min(
         30,
-        width / len(data["intersection_id"].unique().tolist())
-        - vertical_bar_padding,
+        width / len(data["intersection_id"].unique().tolist()) - vertical_bar_padding,
     )
 
     main_color = "#3A3A3A"
-    brush_opacity = alt.condition(
-        ~opacity_selection, alt.value(1), alt.value(0.6)
-    )
+    brush_opacity = alt.condition(~opacity_selection, alt.value(1), alt.value(0.6))
     brush_color = alt.condition(
         color_selection, alt.value(highlight_color), alt.value(main_color)
     )
@@ -342,9 +369,7 @@ def UpSetAltair(
         .encode(
             x=alt.X(
                 "intersection_id:N",
-                axis=alt.Axis(
-                    grid=False, labels=False, ticks=False, domain=True
-                ),
+                axis=alt.Axis(grid=False, labels=False, ticks=False, domain=True),
                 sort=x_sort,
                 title=None,
             ),
@@ -370,17 +395,13 @@ def UpSetAltair(
         .encode(
             x=alt.X(
                 "intersection_id:N",
-                axis=alt.Axis(
-                    grid=False, labels=False, ticks=False, domain=False
-                ),
+                axis=alt.Axis(grid=False, labels=False, ticks=False, domain=False),
                 sort=x_sort,
                 title=None,
             ),
             y=alt.Y(
                 "set_order:N",
-                axis=alt.Axis(
-                    grid=False, labels=False, ticks=False, domain=False
-                ),
+                axis=alt.Axis(grid=False, labels=False, ticks=False, domain=False),
                 title=None,
             ),
             color=alt.value("#E6E6E6"),
