@@ -21,7 +21,12 @@ def max_normalization(x, maximum):
 
 
 def background_normalize_zfactor(
-    grp: pd.DataFrame, blanks="Medium", negative_controls="Negative Control"
+    grp: pd.DataFrame,
+    substance_id,
+    measurement,
+    negative_controls,
+    blanks,
+    norm_by_barcode,
 ) -> pd.DataFrame:
     """
     This function is supposed to be applied to a grouped DataFrame.
@@ -35,46 +40,68 @@ def background_normalize_zfactor(
     *`blanks` are controls with only medium and are labeled*
     *in the input DataFrame as 'Medium'.*
     """
-    plate_blanks_mean = grp[grp["ID"] == blanks]["Raw Optical Density"].mean()
+    plate_blanks_mean = grp[grp[substance_id] == blanks][f"Raw {measurement}"].mean()
     # Subtract background noise:
-    grp["Denoised Optical Density"] = grp["Raw Optical Density"] - plate_blanks_mean
-    plate_denoised_negative_mean = grp[grp["ID"] == negative_controls][
-        "Denoised Optical Density"
+    grp[f"Denoised {measurement}"] = grp[f"Raw {measurement}"] - plate_blanks_mean
+    plate_denoised_negative_mean = grp[grp[substance_id] == negative_controls][
+        f"Denoised {measurement}"
     ].mean()
-    plate_denoised_blank_mean = grp[grp["ID"] == blanks][
-        "Denoised Optical Density"
+    plate_denoised_blank_mean = grp[grp[substance_id] == blanks][
+        f"Denoised {measurement}"
     ].mean()
     # Normalize:
-    grp["Relative Optical Density"] = grp["Denoised Optical Density"].apply(
+    grp[f"Relative {measurement}"] = grp[f"Denoised {measurement}"].apply(
         lambda x: max_normalization(x, plate_denoised_negative_mean)
     )
     # Z-Factor:
-    plate_neg_controls = grp[grp["ID"] == negative_controls]["Raw Optical Density"]
-    plate_blank_controls = grp[grp["ID"] == blanks]["Raw Optical Density"]
+    plate_neg_controls = grp[grp[substance_id] == negative_controls][
+        f"Raw {measurement}"
+    ]
+    plate_blank_controls = grp[grp[substance_id] == blanks][f"Raw {measurement}"]
     grp["Z-Factor"] = zfactor(plate_neg_controls, plate_blank_controls)
 
     return grp
 
 
-def preprocess(raw_df: pd.DataFrame, input_df: pd.DataFrame, norm_by_barcode="Barcode") -> pd.DataFrame:
+def preprocess(
+    raw_df: pd.DataFrame,
+    input_df: pd.DataFrame,
+    substance_id: str = "ID",
+    measurement: str = "Optical Density",
+    negative_controls: str = "Negative Control",
+    blanks: str = "Blank",
+    norm_by_barcode="Barcode",
+) -> pd.DataFrame:
+    """
+    Processing function which normalizes,
+    calculates Z-Factor per plate (norm_by_barcode)
+    and rounds to sensible decimal places.
+    """
     df = pd.merge(raw_df, input_df)  # merging reader data and input specifications
     df = (
         df.groupby(norm_by_barcode)[df.columns]
-        .apply(background_normalize_zfactor)
+        .apply(
+            lambda grp: background_normalize_zfactor(
+                grp,
+                substance_id,
+                measurement,
+                negative_controls,
+                blanks,
+                norm_by_barcode,
+            )
+        )
         .reset_index(drop=True)
     )
-    return df.round({
-        "Denoised Optical Density": 2,
-        "Relative Optical Density": 2,
-        "Z-Factor": 2
-    })
+    return df.round(
+        {"Denoised Optical Density": 2, "Relative Optical Density": 2, "Z-Factor": 2}
+    )
 
 
 def get_thresholded_subset(
     df: pd.DataFrame,
-    negative_controls: str="Negative Control",
-    blanks: str="Medium",
-    blankplate_organism: str="Blank",
+    negative_controls: str = "Negative Control",
+    blanks: str = "Medium",
+    blankplate_organism: str = "Blank",
     threshold=None,
 ) -> pd.DataFrame:
     """
