@@ -115,6 +115,17 @@ def split_position(
     return df
 
 
+def get_selection(df, threshold_value, x_column="Relative Optical Density"):
+    """
+    Apply this ahead of get_upsetplot_df (to obtain dummies df).
+    After all the above, apply UpSetAltair.
+    """
+    selection_results = df[df[x_column] < threshold_value].copy()
+    selection_results["threshold"] = f"<{threshold_value}"
+
+    return selection_results
+
+
 def get_upsetplot_df(df, set_column="Organism", counts_column="ID"):
     """
     Function to obtain a correctly formatted DataFrame.

@@ -56,10 +56,10 @@ def background_normalize_zfactor(
     return grp
 
 
-def preprocess(raw_df: pd.DataFrame, input_df: pd.DataFrame) -> pd.DataFrame:
+def preprocess(raw_df: pd.DataFrame, input_df: pd.DataFrame, norm_by_barcode="Barcode") -> pd.DataFrame:
     df = pd.merge(raw_df, input_df)  # merging reader data and input specifications
     df = (
-        df.groupby("Barcode")[df.columns]
+        df.groupby(norm_by_barcode)[df.columns]
         .apply(background_normalize_zfactor)
         .reset_index(drop=True)
     )

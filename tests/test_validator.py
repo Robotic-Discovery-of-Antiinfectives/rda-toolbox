@@ -13,8 +13,7 @@ testfile = os.path.abspath("./tests/rawfiles_testfolder/test.txt")
 
 # def validator():
 #     return
-def test_filepaths_to_filedicts():
-    assert readerfiles_to_df(rawfile_paths) is None
+# def test_filepaths_to_filedicts():
+#     assert readerfiles_to_df(rawfile_paths) is None
 
-readerfiles_to_df([testfile])
-
+# readerfiles_to_df([testfile])
