@@ -106,7 +106,12 @@ def preprocess(
         .reset_index(drop=True)
     )
     return df.round(
-        {"Denoised Optical Density": 2, "Relative Optical Density": 2, "Z-Factor": 2}
+        {
+            "Denoised Optical Density": 2,
+            "Relative Optical Density": 2,
+            "Z-Factor": 2,
+            "Concentration": 2,
+        }
     )
 
 
