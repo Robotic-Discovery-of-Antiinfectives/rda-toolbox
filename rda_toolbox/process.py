@@ -73,11 +73,24 @@ def preprocess(
     norm_by_barcode="Barcode",
 ) -> pd.DataFrame:
     """
-    Processing function which normalizes,
-    calculates Z-Factor per plate (norm_by_barcode)
+    - raw_df: raw reader data obtained with `rda.readerfiles_rawdf()`
+    - input_df: input specifications table with required columns:
+        - Dataset (with specified references as their own dataset 'Reference')
+        - ID (substance_id) (with specified blanks and negative_controls)
+        - Assay Transfer Barcode
+        - Row_384 (or Row_96)
+        - Col_384 (or Col_96)
+        - Concentration
+        - Replicate (specifying replicate number)
+        - Organism (scientific organism name i.e. with strain)
+    ---
+    Processing function which merges raw reader data (raw_df)
+    with input specifications table (input_df) and then
+    normalizes, calculates Z-Factor per plate (norm_by_barcode)
     and rounds to sensible decimal places.
     """
-    df = pd.merge(raw_df, input_df)  # merging reader data and input specifications
+    # merging reader data and input specifications table
+    df = pd.merge(raw_df, input_df, how="outer")
     df = (
         df.groupby(norm_by_barcode)[df.columns]
         .apply(
