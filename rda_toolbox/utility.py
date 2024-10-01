@@ -171,3 +171,13 @@ def get_upsetplot_df(df, set_column="Organism", counts_column="ID"):
     # remove any dots as they interfere with altairs plotting.
     dummies_df.columns = dummies_df.columns.str.replace(".", "")
     return dummies_df
+
+
+def chunks(l, n):
+    """
+    Useful function if you want to put a certain amount
+    of observations into one plot.
+    Yield n number of striped chunks from l.
+    """
+    for i in range(0, n):
+        yield l[i::n]
