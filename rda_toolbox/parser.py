@@ -210,7 +210,10 @@ def readerfiles_rawdf(paths: list[str]) -> pd.DataFrame:
         ```
     """
     filedicts = filepaths_to_filedicts(paths)
-    return collect_results(filedicts)
+    rawdata = collect_results(filedicts)
+    rawdata["Col_384"] = rawdata["Col_384"].astype(str)
+    rawdata.rename(columns={"Barcode": "AcD Barcode 384"}, inplace=True)
+    return rawdata
 
 
 def readerfiles_metadf(paths: list[str]) -> pd.DataFrame:
