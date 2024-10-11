@@ -181,3 +181,39 @@ def chunks(l, n):
     """
     for i in range(0, n):
         yield l[i::n]
+
+
+def mic_assaytransfer_mapping(position, orig_barcode, ast_platemapping):
+    """
+    This is a rather unfinished function to map 96 well motherplates to 384 well assay transfer (AsT) plates.
+
+    """
+    row = position[0]
+    col = int(position[1:])
+    orig_barcode = str(orig_barcode)
+    rowmapping = dict(
+        zip(
+            string.ascii_uppercase[0:8],
+            np.array_split(list(string.ascii_uppercase)[0:16], 8),
+        )
+    )
+    colmapping = dict(zip(list(range(1, 13)), [1, 2] * 13))
+    mapping = {1: 0, 2: 0, 3: 1, 4: 1, 5: 0, 6: 0, 7: 1, 8: 1, 9: 0, 10: 0, 11: 1, 12: 1}
+
+    row_384 = rowmapping[row][mapping[col]]
+    col_384 = colmapping[col]
+
+    # TODO: sometimes only the middle (5-8) or the last part of a motherplate is taken...
+    # Currently this would lead to an index error since A5 -> ast_of_3 = 1 but if this is the only AsT plate, the first AsT plate is "missing"...
+    # Possible solution would be to try - except decreasing the position by 4 iteratively...
+    # try A5 except IndexError: A5 - 4 -> try A1 success etc.
+    # or A12 -> ast_of_3 = 2 -> IndexError. A12 - 4 -> A8 -> IndexError. A8 - 4 -> A4 works...
+    # seems like a bad solution though.
+    if col in [1, 2, 3, 4]:
+        ast_of_3 = 0
+    elif col in [5, 6, 7, 8]:
+        ast_of_3 = 1
+    else:
+        ast_of_3 = 2
+    barcode_384_ast = ast_platemapping[orig_barcode][0][ast_of_3]
+    return str(row_384), str(col_384), barcode_384_ast

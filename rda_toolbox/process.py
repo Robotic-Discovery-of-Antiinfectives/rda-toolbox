@@ -3,6 +3,8 @@
 import numpy as np
 import pandas as pd
 
+from ./parser import read_platemapping
+
 
 def zfactor(positive_controls, negative_controls):
     return 1 - (
@@ -160,3 +162,110 @@ def get_thresholded_subset(
         "Cutoff",
     ]
     return result
+
+
+def mic_process_inputs(
+    substances_file: str,
+    ast_mapping_file: str,
+    acd_mapping_file: str,
+):
+    substances = pd.read_excel(substances_file, sheet_name="Substances")
+    organisms = pd.read_excel(substances_file, sheet_name="Organisms")
+    dilutions = pd.read_excel(substances_file, sheet_name="Dilutions")
+    controls = pd.read_excel(substances_file, sheet_name="Controls")
+
+    # Split control position:
+    controls["Row_384"] = controls["Position"].apply(lambda x: x[0])
+    controls["Col_384"] = controls["Position"].apply(lambda x: x[1:])
+
+    organisms = list(organisms["Organism"])
+
+    # input_df = pd.read_excel(substances_file)
+    ast_platemapping, _ = read_platemapping(
+        ast_mapping_file, substances["MP Barcode 96"].unique()
+    )
+
+    # Do some sanity checks:
+    necessary_columns = [
+        "Dataset",
+        "Internal ID",
+        "MP Barcode 96",
+        "MP Position 96",
+    ]
+    # Check if all necessary column are present in the input table:
+    if not all(column in substances.columns for column in necessary_columns):
+        raise ValueError(
+            f"Not all necessary columns are present in the input table.\n(Necessary columns: {necessary_columns})"
+        )
+    # Check if all of the necessary column are complete:
+    if substances[necessary_columns].isnull().values.any():
+        raise ValueError(
+            "Input table incomplete, contains NA (missing) values."
+        )
+    # Check if there are duplicates in the internal IDs
+    if any(substances["Internal ID"].duplicated()):
+        raise ValueError("Duplicate Internal IDs.")
+
+    # Map AssayTransfer barcodes to the motherplate barcodes:
+    substances["Row_384"], substances["Col_384"], substances["AsT Barcode 384"] = (
+        zip(
+            *substances.apply(
+                lambda row: mic_assaytransfer_mapping(
+                    row["MP Position 96"],
+                    row["MP Barcode 96"],
+                    ast_platemapping,
+                ),
+                axis=1,
+            )
+        )
+    )
+    acd_platemapping, replicates_dict = read_platemapping(
+        acd_mapping_file, substances["AsT Barcode 384"].unique()
+    )
+
+    num_replicates = list(set(replicates_dict.values()))[0]
+    print(f"""
+Rows expected without concentrations:\n
+{len(substances["Internal ID"].unique())} (unique substances) * {len(organisms)} (organisms) * {num_replicates} (replicates) = {len(substances["Internal ID"].unique()) * 5 * 3}
+    """)
+    print(f"""
+Rows expected with concentrations:\n
+{len(substances["Internal ID"].unique())} (unique substances) * {len(organisms)} (organisms) * {num_replicates} (replicates) * (11 (concentrations) + 1 (Medium/Blank or Negative Control)) = {len(substances["Internal ID"].unique()) * len(organisms) * num_replicates * (11 + 1) }
+    """)
+    single_subst_concentrations = []
+
+    for substance, subst_row in substances.groupby("Internal ID"):
+        # Collect the concentrations each as rows for a single substance:
+        single_subst_conc_rows = []
+        init_pos = int(subst_row["Col_384"].iloc[0]) - 1
+        col_positions_384 = [list(range(1, 23, 2)), list(range(2, 23, 2))]
+        for col_i, conc in enumerate(list(dilutions["Concentration"])):
+            # Add concentration:
+            subst_row["Concentration"] = conc
+            # Add corresponding column:
+            subst_row["Col_384"] = str(col_positions_384[init_pos][col_i])
+            single_subst_conc_rows.append(subst_row.copy())
+
+        # Concatenate all concentrations rows for a substance in a dataframe
+        single_subst_concentrations.append(pd.concat(single_subst_conc_rows))
+    # Concatenate all substances dataframes to one whole
+    input_w_concentrations = pd.concat(single_subst_concentrations)
+
+    acd_dfs_list = []
+    for ast_barcode, ast_plate in input_w_concentrations.groupby("AsT Barcode 384"):
+        controls["AsT Barcode 384"] = list(ast_plate["AsT Barcode 384"].unique())[0]
+        ast_plate = pd.concat([ast_plate, controls])
+        for org_i, organism in enumerate(organisms):
+            for replicate in range(num_replicates):
+                # Add the AcD barcode
+                ast_plate["AcD Barcode 384"] = acd_platemapping[ast_barcode][
+                    replicate
+                ][org_i]
+
+                ast_plate["Replicate"] = replicate + 1
+                # Add the scientific Organism name
+                ast_plate["Organism"] = organism
+                acd_dfs_list.append(ast_plate.copy())
+                # Add concentrations:
+    acd_single_concentrations_df = pd.concat(acd_dfs_list)
+    return acd_single_concentrations_df
