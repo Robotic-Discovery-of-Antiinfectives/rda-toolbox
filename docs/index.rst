@@ -26,5 +26,7 @@ Indices and tables
    :caption: Contents:
 
    source/intro
+   source/glossary.rst
    source/examples
+   source/mic_example.rst
    source/modules
