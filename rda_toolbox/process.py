@@ -3,7 +3,7 @@
 import numpy as np
 import pandas as pd
 
-from ./parser import read_platemapping
+from .parser import read_platemapping
 
 
 def zfactor(positive_controls, negative_controls):
