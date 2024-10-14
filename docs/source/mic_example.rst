@@ -1,4 +1,4 @@
-Example of a MIC Assay analysis:
+Example of a MIC Assay Analysis
 =============
 
 Collecting the inputs:
