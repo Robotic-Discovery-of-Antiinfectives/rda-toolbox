@@ -9,6 +9,7 @@ The first step in the analysis of the MIC assay is to collect all variable input
 MIC_Input.xlsx consists of multiple sheets
 
 **Substances**
+
 +-----------------------+-------------+-------------+-------------+--------------------+---------------+----------------+
 | Dataset               | External ID | Internal ID | Origin Rack | Origin Position 96 | MP Barcode 96 | MP Position 96 |
 +=======================+=============+=============+=============+====================+===============+================+
@@ -16,6 +17,7 @@ MIC_Input.xlsx consists of multiple sheets
 +-----------------------+-------------+-------------+-------------+--------------------+---------------+----------------+
 
 **Organisms**
+
 +-------------------+------+
 | Organism          | Rack |
 +===================+======+
@@ -23,6 +25,7 @@ MIC_Input.xlsx consists of multiple sheets
 +-------------------+------+
 
 **Dilutions**
+
 +---------------+
 | Concentration |
 +===============+
@@ -40,6 +43,7 @@ MIC_Input.xlsx consists of multiple sheets
 +---------------+
 
 **Controls**
+
 +------------------+-------------------+----------+
 | Dataset          | Internal ID       | Position |
 +==================+===================+==========+
