@@ -52,7 +52,9 @@ def map_96_to_384(
     """
     Maps the rows and columns of 4 96-Well plates into a single 384-Well plate.
 
-    Takes row, column and quadrant (each of the 96-well plates is one quadrant) of a well from 4 96-well plates and maps it to the corresponding well in a 384-well plate.
+    - Maps in Z order.
+    - Takes row, column and quadrant (each of the 96-well plates is one quadrant) of a well from 4 96-well plates and maps it to the corresponding well in a 384-well plate
+
     Returns the 384-Well plate row and column.
     Example: `df["Row_384"], df["Col_384"] = zip(*df.apply(map_96_to_384, axis=1))`
     """
@@ -83,6 +85,8 @@ def mapapply_96_to_384(
     q_name: str = "Quadrant",
 ) -> pd.DataFrame:
     """Apply to a DataFrame the mapping of 96-well positions to 384-well positions.
+
+    - Maps in Z order.
     The DataFrame has to have columns with:
     - 96-well plate row positions
     - 96-well plate column positions
