@@ -46,7 +46,7 @@ def plateheatmaps(
     - negative_control: controls with organism + medium
     - blank: controls with only medium (no organism and therefore no growth)
     Plots heatmaps of the plates from df in a gridlike manner.
-    Exclude unwanted plates, for example Blanks from the df like so
+    Exclude unwanted plates, for example Blanks from the df outside this function, like so
     `df[df["Organism"] != "Blank"]`
     before plotting, otherwise it will appear as an extra plate.
     """
@@ -182,6 +182,8 @@ def UpSetAltair(
         - horizontal_bar_size (int): Height of bars in the horizontal bar chart.
         - vertical_bar_label_size (int): Font size of texts in the vertical bar chart on the top.
         - vertical_bar_padding (int): Gap between a pair of bars in the vertical bar charts.
+
+    Run rda.utility.get_upsetplot_df() on the df before trying this function.
     """
 
     if data is None:
