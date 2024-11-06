@@ -174,7 +174,7 @@ def get_upsetplot_df(df, set_column="Organism", counts_column="ID"):
     )
     # remove any dots as they interfere with altairs plotting.
     dummies_df.columns = dummies_df.columns.str.replace(".", "")
-    return dummies_df
+    return dummies_df.drop(columns=["count"])
 
 
 def chunks(l, n):
