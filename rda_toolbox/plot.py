@@ -123,16 +123,17 @@ def upsetaltair_top_level_configuration(
             titleFontWeight=400,
             titlePadding=10,
         )
-        .configure_legend(
-            titleFontSize=16,
-            titleFontWeight=400,
-            labelFontSize=14,
-            labelFontWeight=300,
-            padding=20,
-            orient=legend_orient,
-            symbolType="circle",
-            symbolSize=legend_symbol_size,
-        )
+        # .configure_legend(
+        #     titleFontSize=16,
+        #     titleFontWeight=400,
+        #     labelFontSize=14,
+        #     labelFontWeight=300,
+        #     padding=20,
+        #     orient=legend_orient,
+        #     symbolType="circle",
+        #     symbolSize=legend_symbol_size,
+        # )
+        .configure_legend(disable=True)
         .configure_concat(spacing=0)
     )
 
