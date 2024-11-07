@@ -159,6 +159,7 @@ def UpSetAltair(
     horizontal_bar_size=20,
     vertical_bar_label_size=16,
     vertical_bar_padding=20,
+    with_color=True,
 ):
     """This function generates Altair-based interactive UpSet plots.
 
@@ -449,7 +450,7 @@ def UpSetAltair(
                 range=list(set_colors_dict.values()),
             ),
             title=None,
-        ),
+        ) if with_color else alt.value("RoyalBlue"),
         opacity=alt.value(1),
     )
     horizontal_bar_label = horizontal_bar_label_bg.mark_text(
