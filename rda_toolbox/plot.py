@@ -159,7 +159,7 @@ def UpSetAltair(
     horizontal_bar_size=20,
     vertical_bar_label_size=16,
     vertical_bar_padding=20,
-    with_color=True,
+    colors = []
 ):
     """This function generates Altair-based interactive UpSet plots.
 
@@ -184,6 +184,7 @@ def UpSetAltair(
         - horizontal_bar_size (int): Height of bars in the horizontal bar chart.
         - vertical_bar_label_size (int): Font size of texts in the vertical bar chart on the top.
         - vertical_bar_padding (int): Gap between a pair of bars in the vertical bar charts.
+        - colors=[] (list[str]): List of colors for the horizontal bars, if empty use default colors.
 
     Run rda.utility.get_upsetplot_df() on the df before trying this function.
     """
@@ -216,14 +217,11 @@ def UpSetAltair(
             "#9c6b4e",
             "#9498a0",
         ]
-        if len(sets) > len(observable10):
-            raise IndexError(
-                "More sets than default colors, please provide a set_colors_dict argument"
-            )
-        else:
-            set_colors_dict = {
-                key: value for key, value in zip(sets, observable10[: len(sets)])
-            }
+        if len(sets) > len(colors):
+            colors = colors * len(sets)
+        set_colors_dict = {
+            key: value for key, value in zip(sets, colors[: len(sets)])
+        }
 
     # filter set_colors_dict with the sets which are actually in the data df (sets)
     # this might be needed if set_colors_dict if more comprehensive than the data
@@ -450,7 +448,7 @@ def UpSetAltair(
                 range=list(set_colors_dict.values()),
             ),
             title=None,
-        ) if with_color else alt.value("RoyalBlue"),
+        ),
         opacity=alt.value(1),
     )
     horizontal_bar_label = horizontal_bar_label_bg.mark_text(
