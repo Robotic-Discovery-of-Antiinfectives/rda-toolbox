@@ -280,10 +280,10 @@ def UpSetAltair(
     matrix_height = height - vertical_bar_chart_height
     matrix_width = width - horizontal_bar_chart_width
 
-    vertical_bar_size = min(
-        30,
-        width / len(data["intersection_id"].unique().tolist()) - vertical_bar_padding,
-    )
+    # vertical_bar_size = min(
+    #     30,
+    #     width / len(data["intersection_id"].unique().tolist()) - vertical_bar_padding,
+    # )
 
     main_color = "#3A3A3A"
     brush_opacity = alt.condition(~opacity_selection, alt.value(1), alt.value(0.6))
@@ -367,7 +367,7 @@ def UpSetAltair(
     )
 
     vertical_bar = (
-        base.mark_bar(color=main_color, size=vertical_bar_size)
+        base.mark_bar(color=main_color),# , size=vertical_bar_size)
         .encode(
             x=alt.X(
                 "intersection_id:N",
@@ -472,7 +472,8 @@ def UpSetAltair(
                 axis=alt.Axis(grid=False, tickCount=3),
                 title="Set Size",
                 # scale=alt.Scale(range=color_range)
-            )
+            ),
+            color=alt.Color(legend=None), # remove interactivity, color and legend
         )
         .properties(width=horizontal_bar_chart_width)
     )
