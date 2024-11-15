@@ -137,15 +137,14 @@ def upsetaltair_top_level_configuration(
         .configure_concat(spacing=0)
     )
 
-
 def UpSetAltair(
     data=None,
     title="",
     subtitle="",
     sets=None,
     abbre=None,
-    sort_by="degree",
-    sort_by_order="descending",
+    sort_by="frequency",
+    sort_by_order="ascending",
     inter_degree_frequency="ascending",
     width=1200,
     height=700,
@@ -159,7 +158,7 @@ def UpSetAltair(
     horizontal_bar_size=20,
     vertical_bar_label_size=16,
     vertical_bar_padding=20,
-    colors = []
+    set_labelstyle="normal"
 ):
     """This function generates Altair-based interactive UpSet plots.
 
@@ -168,7 +167,7 @@ def UpSetAltair(
             exclusive intersecting sets (column).
         - sets (list): List of set names of interest to show in the UpSet plots.
             This list reflects the order of sets to be shown in the plots as well.
-        - abbre (list): Abbreviated set names.
+        - abbre (dict): Dictionary mapping set names to abbreviated set names.
         - sort_by (str): "frequency" or "degree"
         - sort_by_order (str): "ascending" or "descending"
         - inter_degree_frequency: "ascending" or "descending", only makes sense if sort_by="degree"
@@ -176,7 +175,7 @@ def UpSetAltair(
         - height (int): Horizontal size of the UpSet plot.
         - height_ratio (float): Ratio of height between upper and under views, ranges from 0 to 1.
         - horizontal_bar_chart_width (int): Width of horizontal bar chart on the bottom-right.
-        - set_colors_dict (dict): dictionary containing the sets as keys with corresponding colors as values
+        - set_colors_dict (dict): Dictionary containing the sets as keys with corresponding colors as values
         - highlight_color (str): Color to encode intersecting sets upon mouse hover.
         - glyph_size (int): Size of UpSet glyph (⬤).
         - set_label_bg_size (int): Size of label background in the horizontal bar chart.
@@ -184,7 +183,7 @@ def UpSetAltair(
         - horizontal_bar_size (int): Height of bars in the horizontal bar chart.
         - vertical_bar_label_size (int): Font size of texts in the vertical bar chart on the top.
         - vertical_bar_padding (int): Gap between a pair of bars in the vertical bar charts.
-        - colors=[] (list[str]): List of colors for the horizontal bars, if empty use default colors.
+        - set_labelstyle (str): "normal" (default) or "italic"
 
     Run rda.utility.get_upsetplot_df() on the df before trying this function.
     """
@@ -194,18 +193,19 @@ def UpSetAltair(
         return
     if sets is None:
         sets = list(data.columns[1:])
+
     if (height_ratio < 0) or (1 < height_ratio):
         print("height_ratio set to 0.5")
         height_ratio = 0.5
-    if abbre is None:
-        abbre = sets
+    if not abbre:
+        abbre = {set: set for set in sets}
     if len(sets) != len(abbre):
         abbre = sets
         print(
             "Dropping the `abbre` list because the lengths of `sets` and `abbre` are not identical."
         )
     if not set_colors_dict:  # build default colors dict
-        observable10 = [
+        colors = [  # observable10
             "#4269d0",
             "#efb118",
             "#ff725c",
@@ -222,7 +222,11 @@ def UpSetAltair(
         set_colors_dict = {
             key: value for key, value in zip(sets, colors[: len(sets)])
         }
-
+    else:
+        if sorted(list(set_colors_dict.keys())) != sorted(sets):
+            raise ValueError(
+                f"Wrong set names, correct names are:\n{dict((set, '') for set in sets)}"
+            )
     # filter set_colors_dict with the sets which are actually in the data df (sets)
     # this might be needed if set_colors_dict if more comprehensive than the data
     set_colors_dict = {
@@ -245,10 +249,8 @@ def UpSetAltair(
     data = pd.melt(data, id_vars=["intersection_id", "count", "degree"])
     data = data.rename(columns={"variable": "set", "value": "is_intersect"})
 
-    set_to_abbre = pd.DataFrame(
-        [[sets[i], abbre[i]] for i in range(len(sets))],
-        columns=["set", "set_abbre"],
-    )
+    set_to_abbre = pd.DataFrame(abbre.items(), columns=["set", "set_abbre"])
+
     set_to_order = (
         data[data["is_intersect"] == 1]
         .groupby("set")
@@ -280,17 +282,20 @@ def UpSetAltair(
     matrix_height = height - vertical_bar_chart_height
     matrix_width = width - horizontal_bar_chart_width
 
-    # vertical_bar_size = min(
-    #     30,
-    #     width / len(data["intersection_id"].unique().tolist()) - vertical_bar_padding,
-    # )
+    vertical_bar_size = min(
+        30,
+        width / len(data["intersection_id"].unique().tolist())
+        - vertical_bar_padding,
+    )
 
     main_color = "#3A3A3A"
-    brush_opacity = alt.condition(~opacity_selection, alt.value(1), alt.value(0.6))
+    brush_opacity = alt.condition(
+        ~opacity_selection, alt.value(1), alt.value(0.6)
+    )
     brush_color = alt.condition(
         color_selection, alt.value(highlight_color), alt.value(main_color)
     )
-    is_show_horizontal_bar_label_bg = len(abbre[0]) <= 2
+    is_show_horizontal_bar_label_bg = len(list(abbre.values())[0]) <= 2
     horizontal_bar_label_bg_color = (
         "white" if is_show_horizontal_bar_label_bg else "black"
     )
@@ -367,11 +372,13 @@ def UpSetAltair(
     )
 
     vertical_bar = (
-        base.mark_bar(color=main_color),# , size=vertical_bar_size)
+        base.mark_bar(color=main_color)  # , size=vertical_bar_size)
         .encode(
             x=alt.X(
                 "intersection_id:N",
-                axis=alt.Axis(grid=False, labels=False, ticks=False, domain=True),
+                axis=alt.Axis(
+                    grid=False, labels=False, ticks=False, domain=True
+                ),
                 sort=x_sort,
                 title=None,
             ),
@@ -386,7 +393,7 @@ def UpSetAltair(
         .properties(width=matrix_width, height=vertical_bar_chart_height)
     )
     vertical_bar_text = vertical_bar.mark_text(
-        color=main_color, dy=-10, size=vertical_bar_label_size
+        color=main_color, dy=-10, size=vertical_bar_label_size, fontSize=20
     ).encode(text=alt.Text("count:Q", format=".0f"))
     vertical_bar_chart = (vertical_bar + vertical_bar_text).add_params(
         color_selection,
@@ -397,13 +404,17 @@ def UpSetAltair(
         .encode(
             x=alt.X(
                 "intersection_id:N",
-                axis=alt.Axis(grid=False, labels=False, ticks=False, domain=False),
+                axis=alt.Axis(
+                    grid=False, labels=False, ticks=False, domain=False
+                ),
                 sort=x_sort,
                 title=None,
             ),
             y=alt.Y(
                 "set_order:N",
-                axis=alt.Axis(grid=False, labels=False, ticks=False, domain=False),
+                axis=alt.Axis(
+                    grid=False, labels=False, ticks=False, domain=False
+                ),
                 title=None,
             ),
             color=alt.value("#E6E6E6"),
@@ -452,7 +463,9 @@ def UpSetAltair(
         opacity=alt.value(1),
     )
     horizontal_bar_label = horizontal_bar_label_bg.mark_text(
-        align=("center" if is_show_horizontal_bar_label_bg else "center")
+        align=("center" if is_show_horizontal_bar_label_bg else "center"),
+        fontSize=20,
+        fontStyle=set_labelstyle,
     ).encode(
         text=alt.Text("set_abbre:N"),
         color=alt.value(horizontal_bar_label_bg_color),
@@ -473,14 +486,13 @@ def UpSetAltair(
                 title="Set Size",
                 # scale=alt.Scale(range=color_range)
             ),
-            color=alt.Color(legend=None), # remove interactivity, color and legend
+            # color=alt.Color(None,legend=None), # remove interactivity, color and legend
         )
         .properties(width=horizontal_bar_chart_width)
     )
-    horizontal_bar_text = horizontal_bar.mark_text(align="left", dx=2).encode(
-        text="sum(count):Q"
-    )
-    # horizontal_bar_text = horizontal_bar.mark_text(align="right", dx=-2).encode(text="sum(count):Q")
+    horizontal_bar_text = horizontal_bar.mark_text(
+        align="left", dx=2, fontSize=20
+    ).encode(text="sum(count):Q")
     horizontal_bar_chart = alt.layer(horizontal_bar, horizontal_bar_text)
     # Concat Plots
     upsetaltair = alt.vconcat(
@@ -488,7 +500,7 @@ def UpSetAltair(
         alt.hconcat(
             matrix_view,
             horizontal_bar_axis,
-            horizontal_bar_chart,  # horizontal bar chart
+            horizontal_bar_chart,
             spacing=5,
         ).resolve_scale(y="shared"),
         spacing=20,
