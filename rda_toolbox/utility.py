@@ -4,6 +4,11 @@ import numpy as np
 import pandas as pd
 import string
 
+import base64
+import io
+from rdkit.Chem import Draw
+from rdkit import Chem
+
 
 def get_rows_cols(platetype: int) -> tuple[int, int]:
     """
@@ -221,3 +226,28 @@ def mic_assaytransfer_mapping(position, orig_barcode, ast_platemapping):
         ast_of_3 = 2
     barcode_384_ast = ast_platemapping[orig_barcode][0][ast_of_3]
     return str(row_384), str(col_384), barcode_384_ast
+
+
+def mol_to_bytes(mol, format="png"):
+    img = Draw.MolToImage(mol)
+    buffer = io.BytesIO()
+    img.save(buffer, format=format)
+    return buffer
+
+def imgbuffer_to_imgstr(imgbuffer, prefix="data:image/png;base64,", suffix=""):
+    """
+    Encode imagebuffer to string (default base64-encoded string).
+    Example: imgbuffer_to_imgstr(mol_to_bytes(mol)), prefix="<img src='data:image/png;base64,", suffix="'/>'")
+    """
+    str_equivalent_image = base64.b64encode(imgbuffer.getvalue()).decode()
+    img_tag = prefix + str_equivalent_image + suffix
+    return img_tag
+
+def smiles_to_imgstr(smiles):
+    """
+    Converts a smiles string to a base64 encoded image string (e.g. for plotting in altair).
+    It's a convenience function consisting of rda.utility.mol_to_bytes() and rda.utility.imgbuffer_to_imgstr(),
+    use these if you want more fine grained control over the format of the returned string.
+    Example: df["image"] = df["smiles"].apply(lambda smiles: smiles_to_imgstr(smiles))
+    """
+    return imgbuffer_to_imgstr(mol_to_bytes(Chem.MolFromSmiles(smiles)))
