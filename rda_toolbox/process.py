@@ -43,6 +43,7 @@ def background_normalize_zfactor(
     *`blanks` are controls with only medium and are labeled*
     *in the input DataFrame as 'Medium'.*
     """
+
     plate_blanks_mean = grp[grp[substance_id] == blanks][f"Raw {measurement}"].mean()
     # Subtract background noise:
     grp[f"Denoised {measurement}"] = grp[f"Raw {measurement}"] - plate_blanks_mean
@@ -61,6 +62,7 @@ def background_normalize_zfactor(
         f"Raw {measurement}"
     ]
     plate_blank_controls = grp[grp[substance_id] == blanks][f"Raw {measurement}"]
+
     grp["Z-Factor"] = zfactor(plate_neg_controls, plate_blank_controls)
 
     return grp
@@ -108,6 +110,8 @@ def preprocess(
         )
         .reset_index(drop=True)
     )
+
+    df[substance_id] = df[substance_id].astype(str)
     return df.round(
         {
             "Denoised Optical Density": 2,

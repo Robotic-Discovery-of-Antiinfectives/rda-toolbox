@@ -23,6 +23,12 @@ MIC_Input.xlsx consists of multiple sheets
 +===================+======+
 | Organism A ST1234 | 1    |
 +-------------------+------+
+| Organism B ST5678 | 2    |
++-------------------+------+
+| Organism C ST9101 | 3    |
++-------------------+------+
+| ...               | ...  |
++-------------------+------+
 
 **Dilutions**
 
@@ -99,13 +105,53 @@ MIC_Input.xlsx consists of multiple sheets
 .. code-block:: Python
    :linenos:
 
-    import rda_toolbox as rda
+   import rda_toolbox as rda
 
-    rda.mic_process_inputs(
-        # Input specifications excel:
-        "../data/input/MIC_Input.xlsx",
-        # Barcode reader file which shows Motherplate to AsT plate mapping
-        "../data/input/DiS_MP_AsT_2024-10-08.txt",
-        # Barcode reader file which shows Ast plate to AcD plate mapping
-        "../data/input/AmA_AsT_AcD_20241009.txt",
-    ).save("../data/processed/prepared_input_mapping_table.csv", index=False)
+   input_mapping = rda.mic_process_inputs(
+       # Input specifications excel:
+       "../data/input/MIC_Input.xlsx",
+       # Barcode reader file which shows Motherplate to AsT plate mapping
+       "../data/input/DiS_MP_AsT_2024-10-08.txt",
+       # Barcode reader file which shows Ast plate to AcD plate mapping
+       "../data/input/AmA_AsT_AcD_20241009.txt",
+   )
+   input_mapping.to_csv("../data/processed/prepared_input_mapping_table.csv", index=False)
+
+
++----------------+-------------+---------------+-----------------+-------------+---------------+----------------+---------+---------+-----------------+---------------+----------+-----------------+-----------+----------+
+| Dataset        | External ID | Original Rack | Origin Position | Internal ID | MP Barcode 96 | MP Position 96 | Row_384 | Col_384 | AsT Barcode 384 | Concentration | Position | AcD Barcode 384 | Replicate | Organism |
++----------------+-------------+---------------+-----------------+-------------+---------------+----------------+---------+---------+-----------------+---------------+----------+-----------------+-----------+----------+
+| Coop Partner A | 123456789   | 2233445566    | A1              | 987654321   | 3456677889    | A1             |         |         |                 |               |          |                 |           |          |
++----------------+-------------+---------------+-----------------+-------------+---------------+----------------+---------+---------+-----------------+---------------+----------+-----------------+-----------+----------+
+|                |             |               |                 |             |               |                |         |         |                 |               |          |                 |           |          |
++----------------+-------------+---------------+-----------------+-------------+---------------+----------------+---------+---------+-----------------+---------------+----------+-----------------+-----------+----------+
+
+.. code-block:: Python
+   :linenos:
+
+   rawfiles = rda.parse_readerfiles("../data/raw/")
+   rawfiles.to_csv("../data/processed/rawdata.csv", index=False)
+
++---------+---------+---------------------+-----------------+
+| Row_384 | Col_384 | Raw Optical Density | AcD Barcode 384 |
++---------+---------+---------------------+-----------------+
+|         |         |                     |                 |
++---------+---------+---------------------+-----------------+
+|         |         |                     |                 |
++---------+---------+---------------------+-----------------+
+
+
+.. code-block:: Python
+   :linenos:
+
+   processed_data = rda.preprocess(
+       rawfiles,
+       input_mapping,
+       substance_id="Internal ID",
+       measurement="Optical Density",
+       negative_controls="Bacteria + Medium",
+       blanks="Medium",
+       norm_by_barcode="AcD Barcode 384"
+   )
+
+

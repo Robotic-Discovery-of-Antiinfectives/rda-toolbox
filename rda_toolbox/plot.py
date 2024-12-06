@@ -2,6 +2,9 @@
 
 import altair as alt
 import pandas as pd
+from .utility import (
+        prepare_visualization,
+    )
 
 
 def get_heatmap(subdf, substance_id, measurement, negative_controls, blanks):
@@ -51,6 +54,7 @@ def plateheatmaps(
     before plotting, otherwise it will appear as an extra plate.
     """
     df["Col_384"] = df["Col_384"].astype(int)
+    # df[substance_id] = df[substance_id].astype(str)
     plots = []
     for _, _organism_df in df.groupby("Organism"):
         plots.append(
@@ -63,7 +67,7 @@ def plateheatmaps(
             )
             .facet(
                 row=alt.Row(f"{barcode}:N"),
-                column=alt.Column(f"Replicate:N"),
+                column=alt.Column("Replicate:N"),
                 title=alt.Title(
                     _organism_df["Organism"].unique()[0],
                     orient="top",
@@ -524,3 +528,87 @@ def UpSetAltair(
         }
     )
     return upsetaltair
+
+
+
+def lineplots_facet(df, hline_y=50, by_id="Internal ID", whisker_width=10):
+    """
+    Assay: MIC
+    Input: processed_df
+    Output: Altair Chart with faceted lineplots.
+    """
+    df = df.dropna(subset=["Concentration"]).loc[(df["Dataset"] != "Negative Control") & (df["Dataset"] != "Blank"), :]
+    df = prepare_visualization(df, by_id=by_id)
+    hline_y = 50
+    organism_columns = []
+
+    color = alt.condition(
+        # alt.datum.Concentration
+        alt.datum.max_conc_below_threshold,
+        alt.Color("External ID:N"),
+        alt.value("lightgray"),
+    )
+    for organism, org_data in df.groupby(["Organism"]):
+        base = alt.Chart(org_data).encode(color=color)  # , title=organism)
+        lineplot = base.mark_line(point=True, size=0.8).encode(
+            x=alt.X(
+                "Concentration:O",
+                title="Concentration in µM",
+                axis=alt.Axis(labelAngle=-45),
+            ),
+            y=alt.Y(
+                "Mean Relative Optical Density:Q",
+                title="Relative Optical Density",
+                scale=alt.Scale(domain=[-20, 160], clamp=True)
+            ),
+            # color="Internal ID:N",
+            shape=alt.Shape("Internal ID:N", legend=None),
+            # color=color,
+            tooltip=[
+                "Internal ID",
+                "External ID",
+                "Organism",
+                "Dataset",
+                "Concentration",
+                "Used Replicates",
+                "Raw Optical Density",
+                "Mean Relative Optical Density",
+                r"Std\. Relative Optical Density",
+                "Z-Factor",
+            ],
+        )
+
+        error_bars = base.mark_rule().encode(
+            x="Concentration:O",
+            y="uerror:Q",
+            y2="lerror:Q",
+        )
+        uerror_whiskers = base.mark_tick(size=whisker_width).encode(
+            x="Concentration:O",
+            y="uerror:Q",
+        )
+        lerror_whiskers = base.mark_tick(size=whisker_width).encode(
+            x="Concentration:O",
+            y="lerror:Q",
+        )
+
+        hline = base.mark_rule(strokeDash=[3, 2]).encode(
+            y=alt.datum(hline_y),
+            # x=[alt.value(0), alt.value(50)],
+            color=alt.value("black"),
+        )
+
+        org_column = (
+            alt.layer(lineplot, error_bars, uerror_whiskers, lerror_whiskers, hline)
+            .facet(
+                row="AsT Barcode 384",
+                column="AsT Plate Subgroup",
+                title=alt.Title(organism, anchor="middle"),
+            )
+            .resolve_axis(x="independent")
+            .resolve_scale(color="independent", shape="independent")
+            # .add_params(selection)
+        )
+
+        organism_columns.append(org_column)
+    return alt.hconcat(*organism_columns).configure_point(size=60)

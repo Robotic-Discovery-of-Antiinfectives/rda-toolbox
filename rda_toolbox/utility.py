@@ -8,6 +8,7 @@ import base64
 import io
 from rdkit.Chem import Draw
 from rdkit import Chem
+import math
 
 
 def get_rows_cols(platetype: int) -> tuple[int, int]:
@@ -251,3 +252,83 @@ def smiles_to_imgstr(smiles):
     Example: df["image"] = df["smiles"].apply(lambda smiles: smiles_to_imgstr(smiles))
     """
     return imgbuffer_to_imgstr(mol_to_bytes(Chem.MolFromSmiles(smiles)))
+
+
+
+def prepare_visualization(df, by_id="Internal ID", whisker_width = 1):
+    """
+    Does formatting for the facet lineplots.
+    """
+    df = df[df["Z-Factor"] > 0]
+    df["Used Replicates"] = df.groupby(
+        [by_id, "Concentration", "Organism"]
+    )[["Replicate"]].transform("count")
+    df["Mean Relative Optical Density"] = (
+        df.groupby([by_id, "Concentration", "Organism"])[
+            ["Relative Optical Density"]
+        ]
+        .transform("mean")
+        .round(2)
+    )
+    df["Std. Relative Optical Density"] = (
+        df.groupby([by_id, "Concentration", "Organism"])[
+            ["Relative Optical Density"]
+        ]
+        .transform("std")
+        .round(2)
+    )
+    df["uerror"] = (
+        df["Mean Relative Optical Density"]
+        + df["Std. Relative Optical Density"]
+    )
+    df["lerror"] = (
+        df["Mean Relative Optical Density"]
+        - df["Std. Relative Optical Density"]
+    )
+
+    tmp_list = []
+    for _, grp in df.groupby([by_id, "Organism"]):
+        # use replicate == 1 as the meaned OD is the same in all 3 replicates anyways
+        maxconc_below_threshold = grp[(grp["Replicate"] == 1) & (grp["Concentration"] == 50)]["Mean Relative Optical Density"] < 50
+        # print(list(maxconc_below_threshold)[0])
+        grp["max_conc_below_threshold"] = list(maxconc_below_threshold)[0]
+        tmp_list.append(grp)
+        # .sort_values(by=["Concentration"], ascending=False)
+        # grp_sorted[grp_sorted["Concentration"] == 50]["Mean Relative Optical Density"]
+        # print(grp.aggregate())
+    df = pd.concat(tmp_list)
+    # print(df)
+    # df["highest_conc_bigger_50"] = df.groupby([by_id, "Organism"])[
+    #     ["Mean Relative Optical Density"]
+    # ].transform(
+    #     lambda meas_per_conc: list(meas_per_conc)[0] > 50
+    # )
+    # print(df)
+
+    df["at_all_conc_bigger_50"] = df.groupby([by_id, "Organism"])[
+        ["Mean Relative Optical Density"]
+    ].transform(
+        lambda meas_per_conc: all([x > 50 for x in list(meas_per_conc)])
+    )
+    # Bin observations into artificial categories for plotting later:
+    plot_groups = pd.DataFrame()
+    for _, grp in df.groupby(["AsT Barcode 384"]):
+        # divide the observations per plate into chunks
+        # number of chunks is defined by using a maximum of 10 colors/observations per plot
+        num_chunks = math.ceil(len(grp[by_id].unique()) / 10)
+        for nr, chunk in enumerate(
+            list(chunks(grp[by_id].unique(), num_chunks))
+        ):
+            plot_groups = pd.concat(
+                [
+                    plot_groups,
+                    pd.DataFrame(
+                        {
+                            by_id: chunk,
+                            "AsT Plate Subgroup": sum([[nr] * len(chunk)], []),
+                        }
+                    ),
+                ]
+            ).reset_index(drop=True)
+    df = pd.merge(df, plot_groups)
+    return df
