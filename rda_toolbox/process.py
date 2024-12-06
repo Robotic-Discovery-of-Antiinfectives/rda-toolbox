@@ -203,8 +203,8 @@ def mic_process_inputs(
         raise ValueError(
             "Input table incomplete, contains NA (missing) values."
         )
-    # Check if there are duplicates in the internal IDs
-    if any(substances["Internal ID"].duplicated()):
+    # Check if there are duplicates in the internal IDs (apart from references)
+    if any(substances[substances["Dataset"] != "Reference"]["Internal ID"].duplicated()):
         raise ValueError("Duplicate Internal IDs.")
 
     # Map AssayTransfer barcodes to the motherplate barcodes:
