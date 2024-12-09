@@ -2,6 +2,8 @@
 
 import numpy as np
 import pandas as pd
+import os
+import pathlib
 
 from .parser import read_platemapping
 from .utility import mic_assaytransfer_mapping
@@ -122,38 +124,64 @@ def preprocess(
     )
 
 
+# def process(df: pd.DataFrame) -> pd.DataFrame:
+#     processed = df.groupby(
+#         ["Internal ID", "External ID", "Organism", "Concentration", "Dataset"],
+#         as_index=False,
+#     ).agg(
+#         {
+#             "Internal ID": ["first", "size"],
+#             "Relative Optical Density": ["mean", "std"],
+#         }
+#     )
+#     processed.columns = [
+#         "External ID",
+#         "Organism",
+#         "Concentration",
+#         "Dataset",
+#         "Internal ID",
+#         "Num Replicates",
+#         "Relative Optical Density mean",
+#         "Relative Optical Density std",
+#     ]
+#     return processed
+
+
 def get_thresholded_subset(
     df: pd.DataFrame,
+    id_column="ID",
     negative_controls: str = "Negative Control",
     blanks: str = "Medium",
     blankplate_organism: str = "Blank",
     threshold=None,
 ) -> pd.DataFrame:
     """
+    WARNING: DEPRECATED, use apply_threshold() instead.
     Expects a DataFrame with a mic_cutoff column
     """
     # TODO: hardcode less columns
 
     # Use only substance entries, no controls, no blanks etc.:
-    substance_df = df[
-        (df["ID"] != blanks)
-        & (df["ID"] != negative_controls)
-        & (df["Organism"] != blankplate_organism)
-    ]
+    substance_df = df.loc[
+        (df[id_column] != blanks)
+        & (df[id_column] != negative_controls)
+        & (df["Organism"] != blankplate_organism),
+        :
+    ].copy()
     # Apply threshold:
     if threshold:
         substance_df["Cutoff"] = threshold
     else:
         if "mic_cutoff" not in substance_df:
-            raise KeyError("Noo 'mic_cutoff' column in Input.xlsx")
+            raise KeyError("No 'mic_cutoff' column in Input.xlsx")
     selection = substance_df[
         substance_df["Relative Optical Density"] < substance_df["Cutoff"]
     ]
     # Apply mean and std in case of replicates:
-    result = selection.groupby(["ID", "Organism"], as_index=False).agg(
+    result = selection.groupby([id_column, "Organism"], as_index=False).agg(
         {
             "Relative Optical Density": ["mean", "std"],
-            "ID": ["first", "count"],
+            id_column: ["first", "count"],
             "Organism": "first",
             "Cutoff": "first",
         }
@@ -161,12 +189,95 @@ def get_thresholded_subset(
     result.columns = [
         "Relative Optical Density mean",
         "Relative Optical Density std",
-        "ID",
+        id_column,
         "Replicates",
         "Organism",
         "Cutoff",
     ]
     return result
+
+
+# def apply_threshold(
+#     df: pd.DataFrame,
+#     id_column="Internal ID",
+#     negative_controls: str = "Bacteria + Medium",
+#     blanks: str = "Medium",
+#     measurement: str = "Relative Optical Density mean",
+#     threshold=None,
+# ) -> pd.DataFrame:
+#     """
+#     Applies provided threshold to processed data.
+#     Expects a DataFrame with columns:
+#     - External ID
+#     - Organism
+#     - Concentration
+#     - Dataset
+#     - Internal ID
+#     - Num Replicates
+#     - Relative Optical Density mean
+#     - Relative Optical Density std
+
+#     Else provide Cutoff via 'threshold' keyword argument.
+
+#     Returns a smaller DataFrame than was given via input.
+#     """
+
+#     # Use only substance entries, no controls, no blanks etc.:
+#     substance_df = df.loc[
+#         (df[id_column] != blanks) & (df[id_column] != negative_controls), :
+#     ].copy()
+#     # Apply threshold:
+#     if threshold: # overwrite possibly provided cutoff via input df
+#         substance_df["Cutoff"] = threshold
+#     if not threshold:
+#         if "Cutoff" not in substance_df:
+#             raise KeyError(
+#                 "No threshold argument provided and no 'Cutoff' column in Input.xlsx" +
+#                 " E.g.: apply_threshold(processed_data, threshold=50)"
+#             )
+#     # highest conc. needs to be below the threshold
+#     # measurement at any conc. below threshold
+
+#     # filter for groups where the measurement at max. conc. is below the given threshold
+#     selection = substance_df.groupby(["Internal ID", "Organism"]).filter(
+#         lambda grp: grp[grp["Concentration"] == grp["Concentration"].max()][
+#             "Relative Optical Density mean"
+#         ]
+#         < grp["Cutoff"].mean()
+#     )
+#     mic_dfs = []
+#     non_grouping_columns = [
+#         "Concentration",
+#         "Num Replicates",
+#         "Relative Optical Density mean",
+#         "Relative Optical Density std",
+#     ]
+#     grouping_columns = list(
+#         filter(lambda x: x not in non_grouping_columns, selection.columns)
+#     )
+#     for grp_columns, grp in selection.groupby(grouping_columns):
+#         mic_df = pd.DataFrame(
+#             {key: [value] for key, value in zip(grouping_columns, grp_columns)}
+#         )
+#         mic_df[f"MIC {threshold}"] = grp.iloc[
+#             (
+#                 grp.sort_values(by=["Concentration"])[
+#                     "Relative Optical Density mean"
+#                 ]
+#                 < list(grp["Cutoff"].unique())[0]
+#             ).argmax()
+#         ]["Concentration"]
+#         mic_df[f"Relative Optical Density mean"] = grp.iloc[
+#             (
+#                 grp.sort_values(by=["Concentration"])[
+#                     "Relative Optical Density mean"
+#                 ]
+#                 < list(grp["Cutoff"].unique())[0]
+#             ).argmax()
+#         ]["Relative Optical Density mean"]
+#         mic_dfs.append(mic_df)
+
+#     return pd.concat(mic_dfs)
 
 
 def mic_process_inputs(
@@ -274,3 +385,123 @@ Rows expected with concentrations:\n
                 # Add concentrations:
     acd_single_concentrations_df = pd.concat(acd_dfs_list)
     return acd_single_concentrations_df
+
+
+def mic_results(df, filepath, thresholds=[20, 50]):
+    """
+    Expects the results from rda.preprocess() function.
+    Means measurements between replicates and obtains the MIC values per substance and organism.
+    Saves excel files per dataset and sheets per organism with Minimum Inhibitory Concentrations (MICs)
+    at the given thresholds.
+    """
+
+    df = df[
+        (df["Dataset"] != "Negative Control")
+        & (df["Dataset"] != "Blank")
+    ].dropna(subset=["Concentration"])
+    # the above should remove entries where Concentration == NAN
+
+    # Pivot table to get the aggregated values:
+    pivot_df = pd.pivot_table(
+        df,
+        values=["Relative Optical Density", "Replicate", "Z-Factor"],
+        index=[
+            "Internal ID",
+            "External ID",
+            "Organism",
+            "Concentration",
+            "Dataset",
+        ],
+        aggfunc={
+            "Relative Optical Density": ["mean"],
+            "Replicate": ["count"],
+            "Z-Factor": ["mean", "std"],  # does this make sense? with std its usable.
+            # "Z-Factor": ["std"],
+        },
+    ).reset_index()
+
+    # merge pandas hirarchical column index (wtf is this pandas!?)
+    pivot_df.columns = [" ".join(x).strip() for x in pivot_df.columns.ravel()]
+
+    mic_records = []
+    for group_names, grp in pivot_df.groupby(
+        ["Internal ID", "External ID", "Organism", "Dataset"]
+    ):
+        internal_id, external_id, organism, dataset = group_names
+        # Sort by concentration just to be sure:
+        grp = grp[
+            ["Concentration", "Relative Optical Density mean", "Z-Factor mean", "Z-Factor std"]
+        ].sort_values(by=["Concentration"])
+        #print(grp)
+        # Get rows where the OD is below the given threshold:
+        record = {
+            "Internal ID": internal_id,
+            "External ID": external_id,
+            "Organism": organism,
+            "Dataset": dataset,
+            "Z-Factor mean": list(grp["Z-Factor mean"])[0],
+            "Z-Factor std": list(grp["Z-Factor std"])[0],
+        }
+
+        for threshold in thresholds:
+            values_below_threshold = grp[
+                grp["Relative Optical Density mean"] < threshold
+            ]
+            # thx to jonathan - check if the OD at maximum concentration is below threshold (instead of any concentration)
+            max_conc_below_threshold = list(
+                grp[grp["Concentration"] == max(grp["Concentration"])][
+                    "Relative Optical Density mean"
+                ]
+                < threshold
+            )[0]
+            if not max_conc_below_threshold:
+                mic = None
+            else:
+                mic = values_below_threshold.iloc[0]["Concentration"]
+            record[f"MIC{threshold} in µM"] = mic
+        mic_records.append(record)
+    # Drop entries where no MIC could be determined
+    mic_df = pd.DataFrame.from_records(mic_records)
+    mic_df.dropna(
+        subset=[f"MIC{threshold} in µM" for threshold in thresholds],
+        how="all",
+        inplace=True,
+    )
+    # mic_df.drop(columns=["Internal ID"], inplace=True)
+    mic_df.round(2).to_excel(os.path.join(filepath, "mics_all_infos.xlsx"), index=False)
+    # print(mic_df)
+    for dataset, dataset_grp in mic_df.groupby(["Dataset"]):
+        pivot_multiindex_df = pd.pivot_table(
+            dataset_grp,
+            values=[f"MIC{threshold} in µM" for threshold in thresholds] + ["Z-Factor mean", "Z-Factor std"],
+            index=["Internal ID", "External ID", "Dataset"],
+            columns="Organism",
+        ).reset_index()
+        # print(pivot_multiindex_df.droplevel()) # .to_excel(f"./test{dataset[0]}.xlsx")
+        resultpath = os.path.join(filepath, dataset[0])
+        pathlib.Path(resultpath).mkdir(parents=True, exist_ok=True)
+        for threshold in thresholds:
+            organisms_thresholded_mics = pivot_multiindex_df[
+                ["Internal ID", "External ID", f"MIC{threshold} in µM"]
+            ]
+            cols = list(organisms_thresholded_mics.columns.droplevel())
+            cols[0] = "Internal ID"
+            cols[1] = "External ID"
+            organisms_thresholded_mics.columns = cols
+            organisms_thresholded_mics = (
+                organisms_thresholded_mics.sort_values(
+                    by=list(organisms_thresholded_mics.columns)[2:],
+                    na_position="last",
+                )
+            )
+            organisms_thresholded_mics.dropna(
+                subset=list(organisms_thresholded_mics.columns)[2:],
+                how="all",
+                inplace=True,
+            )
+            organisms_thresholded_mics.to_excel(
+                os.path.join(
+                    resultpath, f"{dataset[0]}_MIC{threshold}_results.xlsx"
+                ),
+                index=False,
+            )

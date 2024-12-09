@@ -10,11 +10,22 @@ from .parser import (
         process_inputfile,
         parse_readerfiles,
         )
+
 from .plot import (
         plateheatmaps,
         UpSetAltair,
         lineplots_facet,
         )
-from .process import preprocess
-from .utility import mapapply_96_to_384
-from .process import mic_process_inputs
+
+from .process import (
+        preprocess,
+        mic_results,
+        )
+
+from .utility import (
+        mapapply_96_to_384,
+        )
+
+from .process import (
+        mic_process_inputs,
+        )
