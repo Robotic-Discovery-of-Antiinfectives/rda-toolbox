@@ -45,4 +45,5 @@ This package uses [Vega-Altair](https://altair-viz.github.io/index.html) for cre
 
 ### New Release
 1) Update `pyproject.toml` release version
-2) On GitHub go to *releases* and `Draft a new release`
+2) Update `docs/source/conf.py` release version
+3) On GitHub go to *releases* and `Draft a new release`
