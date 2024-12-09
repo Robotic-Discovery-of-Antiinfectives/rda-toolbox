@@ -144,7 +144,7 @@ MIC_Input.xlsx consists of multiple sheets
 .. code-block:: Python
    :linenos:
 
-   processed_data = rda.preprocess(
+   preprocessed_data = rda.preprocess(
        rawfiles,
        input_mapping,
        substance_id="Internal ID",
@@ -153,5 +153,43 @@ MIC_Input.xlsx consists of multiple sheets
        blanks="Medium",
        norm_by_barcode="AcD Barcode 384"
    )
+   preprocessed_data.to_csv("../data/processed/preprocessed_data.csv", index=False)
 
 
+First Visualizations for Quality Control:
+*******************
+
+After processing all the inputs and preprocessing the rawdata like subtracting background noise etc., we can do some first visualizations.
+
+Create faceted heatmaps for each raw plate for quality control.
+
+.. code-block:: Python
+   :linenos:
+
+    plate_heatmaps = rda.plateheatmaps(preprocessed_data, substance_id="Internal ID", barcode="AsT Barcode 384", negative_control="Bacteria + Medium", blank="Medium")
+    plate_heatmaps.save("../figures/plateheatmaps.svg")
+    plate_heatmaps.save("../figures/plateheatmaps.html")
+
+
+Create lineplots with a horizontal rule at 50% relative growth.
+
+.. code-block:: Python
+   :linenos:
+
+    lineplots = rda.lineplots_facet(
+        preprocessed_data
+        hline_y=50
+    )
+    lineplots.save(f"../figures/MIC_Lineplots_AllDatasets.svg")
+    lineplots.save(f"../figures/MIC_Lineplots_AllDatasets.html")
+
+
+Obtain MIC results:
+*******************
+
+Calculate the mean between replicates, apply MIC threshold, save the results for each dataset in its corresponding folders under <Projectfolder>/data/results/{Datasets}.
+
+.. code-block:: Python
+   :linenos:
+
+   mic_results(preprocessed_data, "../data/results/")
