@@ -29,4 +29,5 @@ Indices and tables
    source/glossary.rst
    source/examples
    source/mic_example.rst
+   source/primary_example.rst
    source/modules

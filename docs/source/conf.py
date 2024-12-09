@@ -13,14 +13,14 @@ sys.path.insert(0, os.path.abspath(".."))
 project = "Robotic-assisted Discovery of Antiinfectives Toolbox"
 copyright = "2024, Timo Leistner"
 author = "Timo Leistner"
-release = "0.1.0"
+release = "0.1.3"
 
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
 
 extensions = [
-        "sphinx.ext.autodoc",
-        ]
+    "sphinx.ext.autodoc",
+]
 
 templates_path = ["_templates"]
 exclude_patterns = ["_build", "Thumbs.db", ".DS_Store"]

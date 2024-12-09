@@ -8,10 +8,12 @@ from .parser import (
         readerfiles_metadf,
         readerfiles_rawdf,
         process_inputfile,
+        parse_readerfiles,
         )
 from .plot import (
         plateheatmaps,
-        UpSetAltair
+        UpSetAltair,
+        lineplots_facet,
         )
 from .process import preprocess
 from .utility import mapapply_96_to_384
