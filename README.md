@@ -2,8 +2,7 @@
 
 This package aims to provide a toolbox for data analysis in the field of drug discovery.
 
-- **[Docs](https://pypi.org/project/rda-toolbox/](https://rda-toolbox.readthedocs.io/en/latest/
-)**
+- **[Docs](https://rda-toolbox.readthedocs.io/en/latest/)**
 - **[PyPi](https://pypi.org/project/rda-toolbox/)**
 
 
