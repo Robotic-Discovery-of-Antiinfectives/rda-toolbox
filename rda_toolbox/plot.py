@@ -562,7 +562,7 @@ def lineplots_facet(df, hline_y=50, by_id="Internal ID", whisker_width=10):
                 scale=alt.Scale(domain=[-20, 160], clamp=True)
             ),
             # color="Internal ID:N",
-            shape=alt.Shape("Internal ID:N", legend=None),
+            shape=alt.Shape("External ID:N", legend=None),
             # color=color,
             tooltip=[
                 "Internal ID",
