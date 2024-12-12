@@ -3,8 +3,8 @@
 import altair as alt
 import pandas as pd
 from .utility import (
-        prepare_visualization,
-    )
+    prepare_visualization,
+)
 
 
 def get_heatmap(subdf, substance_id, measurement, negative_controls, blanks):
@@ -141,6 +141,7 @@ def upsetaltair_top_level_configuration(
         .configure_concat(spacing=0)
     )
 
+
 def UpSetAltair(
     data=None,
     title="",
@@ -162,7 +163,7 @@ def UpSetAltair(
     horizontal_bar_size=20,
     vertical_bar_label_size=16,
     vertical_bar_padding=20,
-    set_labelstyle="normal"
+    set_labelstyle="normal",
 ):
     """This function generates Altair-based interactive UpSet plots.
 
@@ -223,9 +224,7 @@ def UpSetAltair(
         ]
         if len(sets) > len(colors):
             colors = colors * len(sets)
-        set_colors_dict = {
-            key: value for key, value in zip(sets, colors[: len(sets)])
-        }
+        set_colors_dict = {key: value for key, value in zip(sets, colors[: len(sets)])}
     else:
         if sorted(list(set_colors_dict.keys())) != sorted(sets):
             raise ValueError(
@@ -288,14 +287,11 @@ def UpSetAltair(
 
     vertical_bar_size = min(
         30,
-        width / len(data["intersection_id"].unique().tolist())
-        - vertical_bar_padding,
+        width / len(data["intersection_id"].unique().tolist()) - vertical_bar_padding,
     )
 
     main_color = "#3A3A3A"
-    brush_opacity = alt.condition(
-        ~opacity_selection, alt.value(1), alt.value(0.6)
-    )
+    brush_opacity = alt.condition(~opacity_selection, alt.value(1), alt.value(0.6))
     brush_color = alt.condition(
         color_selection, alt.value(highlight_color), alt.value(main_color)
     )
@@ -380,9 +376,7 @@ def UpSetAltair(
         .encode(
             x=alt.X(
                 "intersection_id:N",
-                axis=alt.Axis(
-                    grid=False, labels=False, ticks=False, domain=True
-                ),
+                axis=alt.Axis(grid=False, labels=False, ticks=False, domain=True),
                 sort=x_sort,
                 title=None,
             ),
@@ -408,17 +402,13 @@ def UpSetAltair(
         .encode(
             x=alt.X(
                 "intersection_id:N",
-                axis=alt.Axis(
-                    grid=False, labels=False, ticks=False, domain=False
-                ),
+                axis=alt.Axis(grid=False, labels=False, ticks=False, domain=False),
                 sort=x_sort,
                 title=None,
             ),
             y=alt.Y(
                 "set_order:N",
-                axis=alt.Axis(
-                    grid=False, labels=False, ticks=False, domain=False
-                ),
+                axis=alt.Axis(grid=False, labels=False, ticks=False, domain=False),
                 title=None,
             ),
             color=alt.value("#E6E6E6"),
@@ -530,14 +520,16 @@ def UpSetAltair(
     return upsetaltair
 
 
-
 def lineplots_facet(df, hline_y=50, by_id="Internal ID", whisker_width=10):
     """
     Assay: MIC
     Input: processed_df
     Output: Altair Chart with faceted lineplots.
+    Negative controls and blanks are dropped inside the function.
     """
-    df = df.dropna(subset=["Concentration"]).loc[(df["Dataset"] != "Negative Control") & (df["Dataset"] != "Blank"), :]
+    df = df.dropna(subset=["Concentration"]).loc[
+        (df["Dataset"] != "Negative Control") & (df["Dataset"] != "Blank"), :
+    ]
     df = prepare_visualization(df, by_id=by_id)
     hline_y = 50
     organism_columns = []
@@ -559,7 +551,7 @@ def lineplots_facet(df, hline_y=50, by_id="Internal ID", whisker_width=10):
             y=alt.Y(
                 "Mean Relative Optical Density:Q",
                 title="Relative Optical Density",
-                scale=alt.Scale(domain=[-20, 160], clamp=True)
+                scale=alt.Scale(domain=[-20, 160], clamp=True),
             ),
             # color="Internal ID:N",
             shape=alt.Shape("External ID:N", legend=None),
@@ -612,3 +604,37 @@ def lineplots_facet(df, hline_y=50, by_id="Internal ID", whisker_width=10):
 
         organism_columns.append(org_column)
     return alt.hconcat(*organism_columns).configure_point(size=60)
+
+
+def mic_hitstogram(
+    data, mic_col, title="Count Distribution of Hits over Concentration"
+):
+    """
+    It's a Hi(t)stogram...
+    Plots distribution of hits over determined MICs.
+    Example: mic_distribution_overview(mic_results_long, 'MIC50 in µM')
+    """
+    data = data.dropna(subset=[mic_col])
+    bars = (
+        alt.Chart(data, title=alt.Title(title))
+        .mark_bar()
+        .encode(
+            x=alt.X(f"{mic_col}:O"),
+            y=alt.Y("count(External ID):Q"),
+            xOffset="Organism:N",
+            color="Organism:N",
+        )
+    )
+    text = (
+        alt.Chart(data)
+        .mark_text(dx=0, dy=-5)
+        .encode(
+            x=alt.X(f"{mic_col}:O"),
+            y=alt.Y("count(External ID):Q"),
+            text=alt.Text("count(External ID):Q"),
+            xOffset="Organism:N",
+            color="Organism:N",
+        )
+    )
+
+    return alt.layer(bars, text)
