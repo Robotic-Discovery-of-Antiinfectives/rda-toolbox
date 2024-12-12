@@ -197,6 +197,7 @@ def collect_results(filedicts: list[dict]) -> pd.DataFrame:
 
 def parse_readerfiles(path: str) -> pd.DataFrame:
     """
+    Reads CytationC10 readerfiles (plain text files) and merges the results into a DataFrame which is returned.
     Wrapper for readerfiles_rawdf to keep backwards compatibility.
     Improves readerfiles_rawdf, provide a single path for convenience.
     """
@@ -295,3 +296,39 @@ def read_platemapping(filepath: str, orig_barcodes: list[str]):
                 f"The origin barcodes from the mappingfile '{os.path.basename(filepath)}' and MP barcodes in MIC_input.xlsx do not coincide."
             )
         return filedict, replicates_dict
+
+
+def parse_mappingfile(
+    filepath: str,
+    motherplate_column: str = "Origin Plate",
+    childplate_column: str = "AcD Barcode 384",
+):
+    """
+    Simple mappingfile parser function.
+    Expects to start with a "Motherplate" line followed by corresponding "Childplates" in a single line.
+    """
+    # Does not expect replicates or other formats...
+    # TODO: implement replicate handling
+    filedict = dict()
+    with open(filepath) as file:
+        filecontents = file.read().splitlines()
+        key = None
+        for line in filecontents:
+            line = line.split(";")
+            if len(line) == 1:
+                key = line[0]
+            else:
+                if not key:
+                    raise ValueError(
+                        "Motherplate barcode expected on first line."
+                    )
+                filedict[key] = line
+    mapping_df = pd.DataFrame(
+        [
+            (motherplate, childplate, rack_nr)
+            for motherplate, childplates in filedict.items()
+            for rack_nr, childplate in enumerate(childplates, start=1)
+        ],
+        columns=[motherplate_column, childplate_column, "Rack"],
+    )
+    return mapping_df

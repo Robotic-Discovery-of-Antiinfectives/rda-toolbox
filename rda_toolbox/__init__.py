@@ -9,12 +9,14 @@ from .parser import (
         readerfiles_rawdf,
         process_inputfile,
         parse_readerfiles,
+        parse_mappingfile,
         )
 
 from .plot import (
         plateheatmaps,
         UpSetAltair,
         lineplots_facet,
+        mic_hitstogram,
         )
 
 from .process import (
