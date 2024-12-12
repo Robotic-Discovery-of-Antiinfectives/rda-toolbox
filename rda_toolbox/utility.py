@@ -9,6 +9,8 @@ import io
 from rdkit.Chem import Draw
 from rdkit import Chem
 import math
+import pathlib
+import os
 
 
 def get_rows_cols(platetype: int) -> tuple[int, int]:
@@ -24,7 +26,7 @@ def get_rows_cols(platetype: int) -> tuple[int, int]:
             raise ValueError("Not a valid plate type")
 
 
-def generate_inputtable(readout_df = None, platetype: int = 384):
+def generate_inputtable(readout_df=None, platetype: int = 384):
     """
     Generates an input table for the corresponding readout dataframe.
     If not readout df is provided, create a minimal input df.
@@ -34,17 +36,24 @@ def generate_inputtable(readout_df = None, platetype: int = 384):
     else:
         barcodes = readout_df["Barcode"].unique()
 
-    substance_df = pd.DataFrame({
-        "ID": [f"Substance {i}" for i in range(1, platetype+1)],
-        f"Row_{platetype}": [*list(string.ascii_uppercase[:16]) * 24],
-        f"Col_{platetype}": sum([[i] * 16 for i in range(1, 24+1)], []),
-        "Concentration in mg/mL": 1,
-    })
-    layout_df = pd.DataFrame({
-        "Barcode": barcodes,
-        "Replicate": [1] * len(barcodes),
-        "Organism": [f"Placeholder Organism {letter}" for letter in string.ascii_uppercase[:len(barcodes)]]
-    })
+    substance_df = pd.DataFrame(
+        {
+            "ID": [f"Substance {i}" for i in range(1, platetype + 1)],
+            f"Row_{platetype}": [*list(string.ascii_uppercase[:16]) * 24],
+            f"Col_{platetype}": sum([[i] * 16 for i in range(1, 24 + 1)], []),
+            "Concentration in mg/mL": 1,
+        }
+    )
+    layout_df = pd.DataFrame(
+        {
+            "Barcode": barcodes,
+            "Replicate": [1] * len(barcodes),
+            "Organism": [
+                f"Placeholder Organism {letter}"
+                for letter in string.ascii_uppercase[: len(barcodes)]
+            ],
+        }
+    )
     df = pd.merge(layout_df, substance_df, how="cross")
     return df
 
@@ -76,9 +85,7 @@ def map_96_to_384(
             np.array_split(list(string.ascii_uppercase)[0:16], 8),
         )
     )
-    colmapping = dict(
-        zip(list(range(1, 13)), np.array_split(list(range(1, 25)), 12))
-    )
+    colmapping = dict(zip(list(range(1, 13)), np.array_split(list(range(1, 25)), 12)))
     row_384 = rowmapping[row][0 if quadrant in [1, 2] else 1]
     col_384 = colmapping[col][0 if quadrant in [1, 3] else 1]
     return row_384, col_384
@@ -146,10 +153,7 @@ def get_upsetplot_df(df, set_column="Organism", counts_column="ID"):
     *Thanks to: https://stackoverflow.com/questions/37381862/get-dummies-for-pandas-column-containing-list*
     """
     tmp_df = (
-        df
-        .groupby(counts_column)[set_column]
-        .apply(lambda x: x.unique())
-        .reset_index()
+        df.groupby(counts_column)[set_column].apply(lambda x: x.unique()).reset_index()
     )
     dummies_df = (
         pd.get_dummies(
@@ -172,9 +176,7 @@ def get_upsetplot_df(df, set_column="Organism", counts_column="ID"):
     # remove "{set_column}_" from set column labels
     dummies_df.columns = list(
         map(
-            lambda x: "".join(x.split("_")[1:])
-            if x.startswith(set_column)
-            else x,
+            lambda x: "".join(x.split("_")[1:]) if x.startswith(set_column) else x,
             dummies_df.columns,
         )
     )
@@ -208,7 +210,20 @@ def mic_assaytransfer_mapping(position, orig_barcode, ast_platemapping):
         )
     )
     colmapping = dict(zip(list(range(1, 13)), [1, 2] * 13))
-    mapping = {1: 0, 2: 0, 3: 1, 4: 1, 5: 0, 6: 0, 7: 1, 8: 1, 9: 0, 10: 0, 11: 1, 12: 1}
+    mapping = {
+        1: 0,
+        2: 0,
+        3: 1,
+        4: 1,
+        5: 0,
+        6: 0,
+        7: 1,
+        8: 1,
+        9: 0,
+        10: 0,
+        11: 1,
+        12: 1,
+    }
 
     row_384 = rowmapping[row][mapping[col]]
     col_384 = colmapping[col]
@@ -235,6 +250,7 @@ def mol_to_bytes(mol, format="png"):
     img.save(buffer, format=format)
     return buffer
 
+
 def imgbuffer_to_imgstr(imgbuffer, prefix="data:image/png;base64,", suffix=""):
     """
     Encode imagebuffer to string (default base64-encoded string).
@@ -243,6 +259,7 @@ def imgbuffer_to_imgstr(imgbuffer, prefix="data:image/png;base64,", suffix=""):
     str_equivalent_image = base64.b64encode(imgbuffer.getvalue()).decode()
     img_tag = prefix + str_equivalent_image + suffix
     return img_tag
+
 
 def smiles_to_imgstr(smiles):
     """
@@ -254,42 +271,40 @@ def smiles_to_imgstr(smiles):
     return imgbuffer_to_imgstr(mol_to_bytes(Chem.MolFromSmiles(smiles)))
 
 
-
-def prepare_visualization(df, by_id="Internal ID", whisker_width = 1):
+def prepare_visualization(df, by_id="Internal ID", whisker_width=1):
     """
     Does formatting for the facet lineplots.
     """
     df = df[df["Z-Factor"] > 0]
-    df["Used Replicates"] = df.groupby(
-        [by_id, "Concentration", "Organism"]
-    )[["Replicate"]].transform("count")
+    df["Used Replicates"] = df.groupby([by_id, "Concentration", "Organism"])[
+        ["Replicate"]
+    ].transform("count")
     df["Mean Relative Optical Density"] = (
-        df.groupby([by_id, "Concentration", "Organism"])[
-            ["Relative Optical Density"]
-        ]
+        df.groupby([by_id, "Concentration", "Organism"])[["Relative Optical Density"]]
         .transform("mean")
         .round(2)
     )
     df["Std. Relative Optical Density"] = (
-        df.groupby([by_id, "Concentration", "Organism"])[
-            ["Relative Optical Density"]
-        ]
+        df.groupby([by_id, "Concentration", "Organism"])[["Relative Optical Density"]]
         .transform("std")
         .round(2)
     )
     df["uerror"] = (
-        df["Mean Relative Optical Density"]
-        + df["Std. Relative Optical Density"]
+        df["Mean Relative Optical Density"] + df["Std. Relative Optical Density"]
     )
     df["lerror"] = (
-        df["Mean Relative Optical Density"]
-        - df["Std. Relative Optical Density"]
+        df["Mean Relative Optical Density"] - df["Std. Relative Optical Density"]
     )
 
     tmp_list = []
     for _, grp in df.groupby([by_id, "Organism"]):
         # use replicate == 1 as the meaned OD is the same in all 3 replicates anyways
-        maxconc_below_threshold = grp[(grp["Replicate"] == 1) & (grp["Concentration"] == 50)]["Mean Relative Optical Density"] < 50
+        maxconc_below_threshold = (
+            grp[(grp["Replicate"] == 1) & (grp["Concentration"] == 50)][
+                "Mean Relative Optical Density"
+            ]
+            < 50
+        )
         # print(list(maxconc_below_threshold)[0])
         grp["max_conc_below_threshold"] = list(maxconc_below_threshold)[0]
         tmp_list.append(grp)
@@ -307,18 +322,14 @@ def prepare_visualization(df, by_id="Internal ID", whisker_width = 1):
 
     df["at_all_conc_bigger_50"] = df.groupby([by_id, "Organism"])[
         ["Mean Relative Optical Density"]
-    ].transform(
-        lambda meas_per_conc: all([x > 50 for x in list(meas_per_conc)])
-    )
+    ].transform(lambda meas_per_conc: all([x > 50 for x in list(meas_per_conc)]))
     # Bin observations into artificial categories for plotting later:
     plot_groups = pd.DataFrame()
     for _, grp in df.groupby(["AsT Barcode 384"]):
         # divide the observations per plate into chunks
         # number of chunks is defined by using a maximum of 10 colors/observations per plot
         num_chunks = math.ceil(len(grp[by_id].unique()) / 10)
-        for nr, chunk in enumerate(
-            list(chunks(grp[by_id].unique(), num_chunks))
-        ):
+        for nr, chunk in enumerate(list(chunks(grp[by_id].unique(), num_chunks))):
             plot_groups = pd.concat(
                 [
                     plot_groups,
@@ -332,3 +343,56 @@ def prepare_visualization(df, by_id="Internal ID", whisker_width = 1):
             ).reset_index(drop=True)
     df = pd.merge(df, plot_groups)
     return df
+
+
+def save_plot_per_dataset(
+    data: pd.DataFrame,
+    plotfunc,
+    location: str,
+    plotname: str = None,
+    saveformats: list[str] = ["svg", "html"],
+) -> None:
+    """
+    This is a convenience function which splits a dataframe into each dataset given in the 'Dataset' column.
+    Then it applies the given plotting function 'plotfunc' to these splits,
+    automatically creates folders if non existent and saves the plots to the corresponding dataset folders.
+    Examples:
+        save_plot_per_dataset(preprocessed_data, rda.lineplots_facet, "../figures/")
+
+        # if an anonymous function (lambda) is used, a plotname has to be provided:
+        save_plot_per_dataset(mic_results_long, lambda x: rda.mic_hitstogram(x, "MIC50 in µM"), "../figures/", plotname="MIC_Hits_Distribution")
+    """
+    if plotname is None:
+        plotname = plotfunc.__name__
+        if plotname == "<lambda>":
+            raise TypeError(
+                "Please provide a plotname when using a lambda function."
+            )
+
+    data = data.loc[
+        (data["Dataset"] != "Negative Control") & (data["Dataset"] != "Blank")
+    ]
+    reference_df = data.loc[data["Dataset"] == "Reference"]
+    for dataset in filter(
+        lambda x: x != "Reference", data["Dataset"].unique()
+    ):
+        dataset_data = data.loc[data["Dataset"] == dataset]
+        if "AcD Barcode 384" in dataset_data:
+            dataset_barcodes = list(dataset_data["AcD Barcode 384"].unique())
+            dataset_references = reference_df.loc[
+                (reference_df["AcD Barcode 384"].isin(dataset_barcodes)),
+                :,
+            ]
+        else:
+            dataset_references = pd.DataFrame()
+        set_plot = plotfunc(pd.concat([dataset_data, dataset_references]))
+        folder_location = os.path.join(location, dataset)
+        pathlib.Path(folder_location).mkdir(parents=True, exist_ok=True)
+        for fformat in saveformats:
+            print("Saving: ", os.path.join(folder_location, f"{dataset}_{plotname}.{fformat}",))
+            set_plot.save(
+                os.path.join(
+                    folder_location,
+                    f"{dataset}_{plotname}.{fformat}",
+                )
+            )
