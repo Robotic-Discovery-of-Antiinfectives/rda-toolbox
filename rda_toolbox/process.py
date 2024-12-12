@@ -468,7 +468,7 @@ def mic_results(df, filepath, thresholds=[20, 50]):
         inplace=True,
     )
     # mic_df.drop(columns=["Internal ID"], inplace=True)
-    mic_df.round(2).to_excel(os.path.join(filepath, "mics_all_infos.xlsx"), index=False)
+    mic_df.round(2).to_excel(os.path.join(filepath, "MIC_Results_AllDatasets_longformat.xlsx"), index=False)
     # print(mic_df)
     for dataset, dataset_grp in mic_df.groupby(["Dataset"]):
         pivot_multiindex_df = pd.pivot_table(
