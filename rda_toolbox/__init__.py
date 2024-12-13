@@ -22,12 +22,10 @@ from .plot import (
 from .process import (
         preprocess,
         mic_results,
+        mic_process_inputs,
+        primary_process_inputs,
         )
 
 from .utility import (
         mapapply_96_to_384,
-        )
-
-from .process import (
-        mic_process_inputs,
         )
