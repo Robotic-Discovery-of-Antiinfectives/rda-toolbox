@@ -5,8 +5,16 @@ import pandas as pd
 import os
 import pathlib
 
-from .parser import read_platemapping
-from .utility import mic_assaytransfer_mapping
+from .parser import (
+        read_platemapping,
+        parse_mappingfile,
+        parse_readerfiles,
+        read_inputfile,
+        )
+from .utility import (
+        mic_assaytransfer_mapping,
+        mapapply_96_to_384
+    )
 
 
 def zfactor(positive_controls, negative_controls):
@@ -505,3 +513,43 @@ def mic_results(df, filepath, thresholds=[20, 50]):
                 ),
                 index=False,
             )
+
+
+def primary_process_inputs(
+    inputfile_path,
+    mappingfile_path,
+    rawfiles_path,
+    map_rowname="Row 96",
+    map_colname="Col 96",
+    q_name="Quadrant",
+):
+    substances, organisms, dilutions, controls = read_inputfile(inputfile_path)
+    rawdata = parse_readerfiles(rawfiles_path)
+    mapapply_96_to_384(
+        substances, rowname=map_rowname, colname=map_colname, q_name=q_name
+    )
+
+    mapping_df = parse_mappingfile(
+        mappingfile_path,
+        motherplate_column="Origin Plate",
+        childplate_column="AcD Barcode 384",
+    )
+    control_wbarcodes = []
+    for origin_barcode in list(substances["AsT Barcode 384"].unique()):
+        controls_subdf = controls.copy()
+        controls_subdf["AsT Barcode 384"] = origin_barcode
+        control_wbarcodes.append(controls_subdf)
+    controls_n_barcodes = pd.concat(control_wbarcodes)
+
+    ast_plate_df = pd.merge(
+        pd.concat([substances, controls_n_barcodes]), dilutions, how="outer"
+    )
+    result_df = pd.concat(
+        [
+            pd.merge(org_df, ast_plate_df)
+            for _, org_df in pd.merge(
+                pd.merge(mapping_df, organisms), rawdata
+            ).groupby("Organism")
+        ]
+    )
+    return result_df

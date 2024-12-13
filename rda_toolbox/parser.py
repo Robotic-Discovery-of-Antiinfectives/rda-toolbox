@@ -206,7 +206,9 @@ def parse_readerfiles(path: str) -> pd.DataFrame:
             for f in os.listdir(path)
             if os.path.isfile(os.path.join(path, f))
     ]
-    return readerfiles_rawdf(paths)
+    df = readerfiles_rawdf(paths)
+    df["Col_384"] = df["Col_384"].astype(int)
+    return df
 
 def readerfiles_rawdf(paths: list[str]) -> pd.DataFrame:
     """Parses data from files declared by filepaths and merges the results into a DataFrame
@@ -307,8 +309,6 @@ def parse_mappingfile(
     Simple mappingfile parser function.
     Expects to start with a "Motherplate" line followed by corresponding "Childplates" in a single line.
     """
-    # Does not expect replicates or other formats...
-    # TODO: implement replicate handling
     filedict = dict()
     with open(filepath) as file:
         filecontents = file.read().splitlines()
@@ -322,13 +322,53 @@ def parse_mappingfile(
                     raise ValueError(
                         "Motherplate barcode expected on first line."
                     )
-                filedict[key] = line
+                if key in filedict:
+                    filedict[key].append(line)
+                else:
+                    filedict[key] = [line]
     mapping_df = pd.DataFrame(
         [
-            (motherplate, childplate, rack_nr)
-            for motherplate, childplates in filedict.items()
+            (motherplate, childplate, rep_num, rack_nr)
+            for motherplate, replicates in filedict.items()
+            for rep_num, childplates in enumerate(replicates, start=1)
             for rack_nr, childplate in enumerate(childplates, start=1)
         ],
-        columns=[motherplate_column, childplate_column, "Rack"],
+        columns=[motherplate_column, childplate_column, "Replicate", "Rack"],
     )
     return mapping_df
+
+
+def read_inputfile(inputfile_path: str):
+
+    dtypes = { # define type dict to read the correct types from excel
+        'Internal ID': str,
+        'PlateNr 96': int,
+        'MP Barcode 96': str,
+        'Position 96': str,
+        'Row 96': str,
+        'Col 96': int,
+        'PlateNr 384': int,
+        'AsT Barcode 384': str,
+        'Quadrant': int,
+        'Dataset': str,
+        'Row 384': str,
+        'Col 384': int,
+        'Rack': int,
+        'Organism': str,
+        # 'Row_384': str,
+        # 'Col_384': int,
+    }
+    substances = pd.read_excel(
+        inputfile_path,
+        sheet_name="Substances",
+        dtype=dtypes,
+    )
+    organisms = pd.read_excel(inputfile_path, sheet_name="Organisms", dtype=dtypes)
+    dilutions = pd.read_excel(inputfile_path, sheet_name="Dilutions", dtype=dtypes)
+    controls = pd.read_excel(inputfile_path, sheet_name="Controls", dtype=dtypes)
+
+    controls["Row_384"] = controls["Position"].apply(lambda x: str(x[0]))
+    controls["Col_384"] = controls["Position"].apply(lambda x: int(x[1:]))
+    controls.drop(columns="Position", inplace=True)
+
+    return substances, organisms, dilutions, controls
