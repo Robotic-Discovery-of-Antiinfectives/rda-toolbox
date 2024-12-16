@@ -114,6 +114,8 @@ MIC_Input.xlsx consists of multiple sheets
        "../data/input/DiS_MP_AsT_2024-10-08.txt",
        # Barcode reader file which shows Ast plate to AcD plate mapping
        "../data/input/AmA_AsT_AcD_20241009.txt",
+       # Raw files path
+       "../data/raw/",
    )
    input_mapping.to_csv("../data/processed/prepared_input_mapping_table.csv", index=False)
 
@@ -145,7 +147,6 @@ MIC_Input.xlsx consists of multiple sheets
    :linenos:
 
    preprocessed_data = rda.preprocess(
-       rawfiles,
        input_mapping,
        substance_id="Internal ID",
        measurement="Optical Density",
