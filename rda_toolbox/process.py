@@ -79,8 +79,7 @@ def background_normalize_zfactor(
 
 
 def preprocess(
-    raw_df: pd.DataFrame,
-    input_df: pd.DataFrame,
+    df: pd.DataFrame, # mapped inputs
     substance_id: str = "ID",
     measurement: str = "Optical Density",
     negative_controls: str = "Negative Control",
@@ -105,7 +104,7 @@ def preprocess(
     and rounds to sensible decimal places.
     """
     # merging reader data and input specifications table
-    df = pd.merge(raw_df, input_df, how="outer")
+    # df = pd.merge(raw_df, input_df, how="outer")
     df = (
         df.groupby(norm_by_barcode)[df.columns]
         .apply(
@@ -292,15 +291,19 @@ def mic_process_inputs(
     substances_file: str,
     ast_mapping_file: str,
     acd_mapping_file: str,
+    rawfiles_path: str,
 ):
-    substances = pd.read_excel(substances_file, sheet_name="Substances")
-    organisms = pd.read_excel(substances_file, sheet_name="Organisms")
-    dilutions = pd.read_excel(substances_file, sheet_name="Dilutions")
-    controls = pd.read_excel(substances_file, sheet_name="Controls")
+    substances, organisms, dilutions, controls = read_inputfile(substances_file)
+    # substances = pd.read_excel(substances_file, sheet_name="Substances")
+    # organisms = pd.read_excel(substances_file, sheet_name="Organisms")
+    # dilutions = pd.read_excel(substances_file, sheet_name="Dilutions")
+    # controls = pd.read_excel(substances_file, sheet_name="Controls")
+
+    rawdata = parse_readerfiles(rawfiles_path)
 
     # Split control position:
-    controls["Row_384"] = controls["Position"].apply(lambda x: x[0])
-    controls["Col_384"] = controls["Position"].apply(lambda x: x[1:])
+    # controls["Row_384"] = controls["Position"].apply(lambda x: x[0])
+    # controls["Col_384"] = controls["Position"].apply(lambda x: x[1:])
 
     organisms = list(organisms["Organism"])
 
@@ -367,7 +370,7 @@ Rows expected with concentrations:\n
             # Add concentration:
             subst_row["Concentration"] = conc
             # Add corresponding column:
-            subst_row["Col_384"] = str(col_positions_384[init_pos][col_i])
+            subst_row["Col_384"] = int(col_positions_384[init_pos][col_i])
             single_subst_conc_rows.append(subst_row.copy())
 
         # Concatenate all concentrations rows for a substance in a dataframe
@@ -392,7 +395,11 @@ Rows expected with concentrations:\n
                 acd_dfs_list.append(ast_plate.copy())
                 # Add concentrations:
     acd_single_concentrations_df = pd.concat(acd_dfs_list)
-    return acd_single_concentrations_df
+
+    # merge rawdata with input specifications
+    df = pd.merge(rawdata, acd_single_concentrations_df, how="outer")
+
+    return df
 
 
 def mic_results(df, filepath, thresholds=[20, 50]):
