@@ -482,9 +482,7 @@ def mic_results(df, filepath, thresholds=[20, 50]):
         how="all",
         inplace=True,
     )
-    # mic_df.drop(columns=["Internal ID"], inplace=True)
     mic_df.round(2).to_excel(os.path.join(filepath, "MIC_Results_AllDatasets_longformat.xlsx"), index=False)
-    # print(mic_df)
     for dataset, dataset_grp in mic_df.groupby(["Dataset"]):
         pivot_multiindex_df = pd.pivot_table(
             dataset_grp,
@@ -492,8 +490,14 @@ def mic_results(df, filepath, thresholds=[20, 50]):
             index=["Internal ID", "External ID", "Dataset"],
             columns="Organism",
         ).reset_index()
-        # print(pivot_multiindex_df.droplevel()) # .to_excel(f"./test{dataset[0]}.xlsx")
+
         resultpath = os.path.join(filepath, dataset[0])
+
+        # References special case
+        if dataset[0] == "Reference":
+            references_mic_results(df, resultpath, thresholds=thresholds)
+            continue # skip for references
+
         pathlib.Path(resultpath).mkdir(parents=True, exist_ok=True)
         for threshold in thresholds:
             organisms_thresholded_mics = pivot_multiindex_df[
@@ -522,6 +526,64 @@ def mic_results(df, filepath, thresholds=[20, 50]):
             )
 
 
+def references_mic_results(
+    preprocessed_data,
+    resultpath,
+    thresholds=[20, 50],
+):
+    """
+    This function saves an excel file for the reference substances.
+    Since reference substances have duplicate Internal IDs
+    (since they are used multiple times), they would be meaned between duplicates.
+    To circumvent this, this function exists which gets the MIC
+    for each reference **per (AcD) plate** instead of per Internal ID.
+    """
+    only_references = preprocessed_data[
+        preprocessed_data["Dataset"] == "Reference"
+    ]
+    mic_records = []
+    for group_names, grp in only_references.groupby(
+        [
+            "Internal ID",
+            "External ID",
+            "Organism",
+            "Dataset",
+            "AcD Barcode 384",
+        ]
+    ):
+        internal_id, external_id, organism, dataset, acd_barcode = group_names
+        grp = grp.copy().sort_values(by=["Concentration"])
+        record = {
+            "Internal ID": internal_id,
+            "External ID": external_id,
+            "Organism": organism,
+            "Dataset": dataset,
+            "AcD Barcode 384": acd_barcode,
+            "Z-Factor": list(grp["Z-Factor"])[0],
+        }
+        for threshold in thresholds:
+            values_below_threshold = grp[
+                grp["Relative Optical Density"] < threshold
+            ]
+            # thx to jonathan - check if the OD at maximum concentration is below threshold (instead of any concentration)
+            max_conc_below_threshold = list(
+                grp[grp["Concentration"] == max(grp["Concentration"])][
+                    "Relative Optical Density"
+                ]
+                < threshold
+            )[0]
+            if not max_conc_below_threshold:
+                mic = None
+            else:
+                mic = values_below_threshold.iloc[0]["Concentration"]
+            record[f"MIC{threshold} in µM"] = mic
+        mic_records.append(record)
+    mic_df = pd.DataFrame.from_records(mic_records)
+    mic_df.sort_values(by=["External ID", "Organism"]).to_excel(
+        os.path.join(resultpath, "References_MIC_results_eachRefID.xlsx"), index=False
+    )
+
+
 def primary_process_inputs(
     inputfile_path,
     mappingfile_path,
@@ -541,7 +603,9 @@ def primary_process_inputs(
         motherplate_column="Origin Plate",
         childplate_column="AcD Barcode 384",
     )
+
     control_wbarcodes = []
+    # multiply controls with number of AsT plates to later merge them with substances df
     for origin_barcode in list(substances["AsT Barcode 384"].unique()):
         controls_subdf = controls.copy()
         controls_subdf["AsT Barcode 384"] = origin_barcode
