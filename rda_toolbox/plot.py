@@ -238,6 +238,7 @@ def UpSetAltair(
     """
     Data Preprocessing
     """
+    data = data.copy()
     data["count"] = 0
     data = data[sets + ["count"]]
     data = data.groupby(sets).count().reset_index()
