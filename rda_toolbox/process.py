@@ -600,7 +600,8 @@ def primary_process_inputs(
 
     mapping_df = parse_mappingfile(
         mappingfile_path,
-        motherplate_column="Origin Plate",
+        # motherplate_column="Origin Barcode",
+        motherplate_column="AsT Barcode 384",
         childplate_column="AcD Barcode 384",
     )
 
@@ -615,12 +616,20 @@ def primary_process_inputs(
     ast_plate_df = pd.merge(
         pd.concat([substances, controls_n_barcodes]), dilutions, how="outer"
     )
+
+    mapped_organisms = pd.merge(mapping_df, organisms)
+
     result_df = pd.concat(
         [
             pd.merge(org_df, ast_plate_df)
             for _, org_df in pd.merge(
-                pd.merge(mapping_df, organisms), rawdata
+                mapped_organisms, rawdata
             ).groupby("Organism")
         ]
     )
+
+    for ast_barcode, ast_plate in result_df.groupby("AsT Barcode 384"):
+        print(f"AsT Plate {ast_barcode} has size: {len(ast_plate)//len(ast_plate['AcD Barcode 384'].unique())}")
+        print(f"{ast_barcode} -> {ast_plate["AcD Barcode 384"].unique()}")
+
     return result_df
