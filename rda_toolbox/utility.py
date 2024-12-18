@@ -6,6 +6,7 @@ import string
 
 import base64
 import io
+import rdkit
 from rdkit.Chem import Draw
 from rdkit import Chem
 import math
