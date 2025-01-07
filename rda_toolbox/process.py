@@ -163,7 +163,6 @@ def get_thresholded_subset(
     threshold=None,
 ) -> pd.DataFrame:
     """
-    WARNING: DEPRECATED, use apply_threshold() instead.
     Expects a DataFrame with a mic_cutoff column
     """
     # TODO: hardcode less columns
@@ -185,12 +184,13 @@ def get_thresholded_subset(
         substance_df["Relative Optical Density"] < substance_df["Cutoff"]
     ]
     # Apply mean and std in case of replicates:
-    result = selection.groupby([id_column, "Organism"], as_index=False).agg(
+    result = selection.groupby([id_column, "Organism", "Dataset"], as_index=False).agg(
         {
             "Relative Optical Density": ["mean", "std"],
             id_column: ["first", "count"],
             "Organism": "first",
             "Cutoff": "first",
+            "Dataset": "first",
         }
     )
     result.columns = [
@@ -200,6 +200,7 @@ def get_thresholded_subset(
         "Replicates",
         "Organism",
         "Cutoff",
+        "Dataset",
     ]
     return result
 
@@ -633,3 +634,97 @@ def primary_process_inputs(
         print(f"{ast_barcode} -> {ast_plate["AcD Barcode 384"].unique()}")
 
     return result_df
+
+
+def primary_results(
+    df: pd.DataFrame,
+    filepath="../data/results/",
+    thresholds: list[float] = [50],
+):
+    """
+    Expects the results from rda.preprocess() function.
+    """
+    df = df[
+        (df["Dataset"] != "Reference")
+        & (df["Dataset"] != "Positive Control")
+        & (df["Dataset"] != "Blank")
+    ].dropna(subset=["Concentration"])
+
+    pivot_df = pd.pivot_table(
+        df,
+        values=["Relative Optical Density", "Replicate", "Z-Factor"],
+        index=[
+            "Internal ID",
+            "Organism",
+            "Concentration",
+            "Dataset",
+        ],
+        aggfunc={
+            "Relative Optical Density": ["mean"],
+            "Replicate": ["count"],
+        },
+    ).reset_index()
+    pivot_df.columns = [" ".join(x).strip() for x in pivot_df.columns.ravel()]
+
+    for threshold in thresholds:
+        pivot_df[f"Relative Growth < {threshold}"] = pivot_df.groupby(
+            ["Internal ID", "Organism", "Dataset"]
+        )["Relative Optical Density mean"].transform(lambda x: x < threshold)
+
+        for dataset, dataset_grp in pivot_df.groupby(["Dataset"]):
+            dataset = dataset[0]
+            resultpath = os.path.join(filepath, dataset)
+            pathlib.Path(resultpath).mkdir(parents=True, exist_ok=True)
+
+            print(
+                "Saving",
+                os.path.join(resultpath, f"{dataset}_all_results.xlsx"),
+            )
+            dataset_grp.to_excel(
+                os.path.join(resultpath, f"{dataset}_all_results.xlsx"),
+                index=False,
+            )
+            print(
+                "Saving",
+                os.path.join(resultpath, f"{dataset}_all_results.csv"),
+            )
+            dataset_grp.to_csv(
+                os.path.join(resultpath, f"{dataset}_all_results.csv"),
+                index=False,
+            )
+
+
+            pivot_multiindex_df = pd.pivot_table(
+                dataset_grp,
+                values=[f"Relative Optical Density mean"],
+                index=["Internal ID", "Dataset", "Concentration"],
+                columns="Organism",
+            ).reset_index()
+            cols = list(pivot_multiindex_df.columns.droplevel())
+            cols[:3] = list(
+                map(lambda x: x[0], pivot_multiindex_df.columns[:3])
+            )
+            pivot_multiindex_df.columns = cols
+
+            # Apply threshold (active in any organism)
+            thresholded_pivot = pivot_multiindex_df.iloc[
+                  list(pivot_multiindex_df.iloc[:, 3:].apply(lambda x: any(list(map(lambda i: i < threshold, x))), axis=1))
+            ]
+
+            # Sort by columns each organism after the other
+            # return pivot_multiindex_df.sort_values(by=cols[3:])
+
+            # Sort rows by mean between the organisms (lowest mean activity first)
+            results_sorted_by_mean_activity = thresholded_pivot.iloc[
+                thresholded_pivot.iloc[:, 3:].mean(axis=1).argsort()
+            ]
+            print("Saving", os.path.join(resultpath, f"{dataset}_threshold{threshold}_results.xlsx"))
+            results_sorted_by_mean_activity.to_excel(
+                os.path.join(resultpath, f"{dataset}_threshold{threshold}_results.xlsx"),
+                index=False,
+            )
+            print("Saving", os.path.join(resultpath, f"{dataset}_threshold{threshold}_results.csv"))
+            results_sorted_by_mean_activity.to_csv(
+                os.path.join(resultpath, f"{dataset}_threshold{threshold}_results.csv"),
+                index=False,
+            )
