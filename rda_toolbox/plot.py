@@ -2,8 +2,13 @@
 
 import altair as alt
 import pandas as pd
+import pathlib
 from .utility import (
     prepare_visualization,
+    get_upsetplot_df,
+)
+from .process import(
+    get_thresholded_subset,
 )
 
 
@@ -519,6 +524,41 @@ def UpSetAltair(
         }
     )
     return upsetaltair
+
+
+def UpSet_per_dataset(
+    df: pd.DataFrame,  # processed
+    save_formats=["pdf", "svg"],
+    id_column = "Internal ID",
+):
+    """
+    UpsetPlot wrapper function which applies threshold to processed data (without controls, references etc.).
+    For each dataset present in the given df, create a dummy_df for rda.UpSetAltair() and save the UpSetPlot.
+    """
+    subset = get_thresholded_subset(
+        df,
+        id_column="Internal ID",
+        negative_controls="Bacteria + Medium",
+        blanks="Medium",
+        threshold=50,
+    )
+
+    for dataset, sub_df in subset.groupby("Dataset"):
+        dummy_df = get_upsetplot_df(
+            sub_df, counts_column=id_column
+        )
+        # Create dataset folder if non-existent
+        pathlib.Path(f"../figures/{dataset}").mkdir(
+            parents=True, exist_ok=True
+        )
+        for save_format in save_formats:
+            filename = (
+                f"../figures/{dataset}/UpSetPlot_{dataset}.{save_format}"
+            )
+            print("Saving", filename)
+            dataset_upsetplot = rda.UpSetAltair(dummy_df, title=dataset).save(
+                filename
+            )
 
 
 def lineplots_facet(df, hline_y=50, by_id="Internal ID", whisker_width=10):
