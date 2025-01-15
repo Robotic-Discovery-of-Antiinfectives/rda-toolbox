@@ -514,11 +514,11 @@ def mic_results(df, filepath, thresholds=[20, 50]):
                     na_position="last",
                 )
             )
-            organisms_thresholded_mics.dropna(
-                subset=list(organisms_thresholded_mics.columns)[2:],
-                how="all",
-                inplace=True,
-            )
+            # organisms_thresholded_mics.dropna(
+            #     subset=list(organisms_thresholded_mics.columns)[2:],
+            #     how="all",
+            #     inplace=True,
+            # )
             organisms_thresholded_mics.to_excel(
                 os.path.join(
                     resultpath, f"{dataset[0]}_MIC{threshold}_results.xlsx"
