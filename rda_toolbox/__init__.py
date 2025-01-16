@@ -29,3 +29,9 @@ from .process import (
 from .utility import (
         mapapply_96_to_384,
         )
+
+from .experiment_classes import(
+        Precipitation,
+        PrimaryScreen,
+        MIC,
+)
