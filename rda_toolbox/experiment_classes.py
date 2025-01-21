@@ -13,11 +13,36 @@ from .process import preprocess
 
 
 class Experiment:
+    """
+    Superclass for all experiments.
+    Reads rawdata into a DataFrame.
+
+    Attributes
+    ----------
+    rawdata : pd.DataFrame
+        DataFrame containing the rawdata
+
+    Methods
+    ----------
+    save_plots
+        Save all the resulting plots to figuredir
+    save_tables
+        Save all the resulting tables to tabledir
+    save
+        Save all plots and tables to resultdir
+    """
+
     def __init__(self, rawfiles_folderpath: str, plate_type: int):
         self._plate_type = plate_type
         self._rows, self._columns = get_rows_cols(plate_type)
         self._rawfiles_folderpath = rawfiles_folderpath
         self.rawdata = parse_readerfiles(rawfiles_folderpath)
+
+    # def save_plots(self, figuredir: str):
+    # def save_tables(self, tabledir: str):
+    # def save(self, resultdir: str):
+    #     self.save_plots()
+    #     self.save_tables()
 
 
 class Precipitation(Experiment):
@@ -129,7 +154,9 @@ class PrimaryScreen(Experiment):
         negative_controls: str = "Bacteria + Medium",
         blanks: str = "Medium",
         norm_by_barcode: str = "AcD Barcode 384",
+        thresholds : list[float] = [50.0],
     ):
+        # TODO: inherit the save_* functions from Experiment superclass
         super().__init__(rawfiles_folderpath, plate_type)
         self._measurement_label = measurement_label
         self._mappingfile_path = mappingfile_path
@@ -202,8 +229,30 @@ class PrimaryScreen(Experiment):
 
     @cached_property
     def results(self):
-        # def plateheatmap(self):
-        pass
+        df = self.processed.copy()
+        df = df[
+            (df["Dataset"] != "Reference")
+            & (df["Dataset"] != "Positive Control")
+            & (df["Dataset"] != "Blank")
+        ].dropna(subset=["Concentration"])
+
+        pivot_df = pd.pivot_table(
+            df,
+            values=["Relative Optical Density", "Replicate", "Z-Factor"],
+            index=[
+                "Internal ID",
+                "Organism",
+                "Concentration",
+                "Dataset",
+            ],
+            aggfunc={
+                "Relative Optical Density": ["mean"],
+                "Replicate": ["count"],
+            },
+        ).reset_index()
+        pivot_df.columns = [" ".join(x).strip() for x in pivot_df.columns.ravel()]
+
+    # def plateheatmap(self):
 
 
 class MIC(Experiment):  # Minimum Inhibitory Concentration
