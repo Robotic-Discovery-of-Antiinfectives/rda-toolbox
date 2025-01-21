@@ -9,6 +9,7 @@ import string
 
 from .utility import get_rows_cols, mapapply_96_to_384
 from .parser import parse_readerfiles, read_inputfile, parse_mappingfile
+from .process import preprocess
 
 
 class Experiment:
@@ -116,14 +117,18 @@ class Precipitation(Experiment):
 class PrimaryScreen(Experiment):
     def __init__(
         self,
-        rawfiles_folderpath,
-        inputfile_path,
-        mappingfile_path,
-        plate_type=384,  # Define default plate_type for experiment
-        measurement_label="Raw Optical Density",
-        map_rowname="Row_96",
-        map_colname="Col_96",
-        q_name="Quadrant",
+        rawfiles_folderpath: str,
+        inputfile_path: str,
+        mappingfile_path: str,
+        plate_type: int = 384,  # Define default plate_type for experiment
+        measurement_label: str = "Raw Optical Density",
+        map_rowname: str = "Row_96",
+        map_colname: str = "Col_96",
+        q_name: str = "Quadrant",
+        substance_id: str = "Internal ID",
+        negative_controls: str = "Bacteria + Medium",
+        blanks: str = "Medium",
+        norm_by_barcode: str = "AcD Barcode 384",
     ):
         super().__init__(rawfiles_folderpath, plate_type)
         self._measurement_label = measurement_label
@@ -132,12 +137,21 @@ class PrimaryScreen(Experiment):
         self._substances_unmapped, self._organisms, self._dilutions, self._controls = (
             read_inputfile(inputfile_path)
         )
-        self.substances = mapapply_96_to_384(self._substances_unmapped, rowname=map_rowname, colname=map_colname, q_name=q_name)
+        self.substances = mapapply_96_to_384(
+            self._substances_unmapped,
+            rowname=map_rowname,
+            colname=map_colname,
+            q_name=q_name,
+        )
         self._mapping_df = parse_mappingfile(
             mappingfile_path,
-            motherplate_column="AsT  Barcode 384",
+            motherplate_column="AsT Barcode 384",
             childplate_column="AcD Barcode 384",
         )
+        self._substance_id = substance_id
+        self._negative_controls = negative_controls
+        self._blanks = blanks
+        self._norm_by_barcode = norm_by_barcode
 
     @cached_property
     def mapped_input_df(self):
@@ -150,26 +164,41 @@ class PrimaryScreen(Experiment):
         controls_n_barcodes = pd.concat(control_wbarcodes)
 
         ast_plate_df = pd.merge(
-            pd.concat([self.substances, controls_n_barcodes]), self._dilutions, how="outer"
+            pd.concat([self.substances, controls_n_barcodes]),
+            self._dilutions,
+            how="outer",
         )
 
-        mapped_organisms = pd.merge(self._mapping_df, organisms)
+        mapped_organisms = pd.merge(self._mapping_df, self._organisms)
 
         result_df = pd.concat(
             [
                 pd.merge(org_df, ast_plate_df)
-                for _, org_df in pd.merge(
-                    mapped_organisms, self.rawdata
-                ).groupby("Organism")
+                for _, org_df in pd.merge(mapped_organisms, self.rawdata).groupby(
+                    "Organism"
+                )
             ]
         )
 
         for ast_barcode, ast_plate in result_df.groupby("AsT Barcode 384"):
-            print(f"AsT Plate {ast_barcode} has size: {len(ast_plate)//len(ast_plate['AcD Barcode 384'].unique())}")
+            print(
+                f"AsT Plate {ast_barcode} has size: {len(ast_plate)//len(ast_plate['AcD Barcode 384'].unique())}"
+            )
             print(f"{ast_barcode} -> {ast_plate["AcD Barcode 384"].unique()}")
-            pass
         return result_df
 
+    @cached_property
+    def processed(self):
+        return preprocess(
+            self.mapped_input_df,
+            substance_id = self._substance_id,
+            measurement = self._measurement_label.strip(
+                "Raw "
+            ),  # I know this is weird, its because of how background_normalize_zfactor works,
+            negative_controls = self._negative_controls,
+            blanks = self._blanks,
+            norm_by_barcode = self._norm_by_barcode,
+        )
 
     @cached_property
     def results(self):
