@@ -367,7 +367,7 @@ Rows expected with concentrations:\n
         single_subst_conc_rows = []
         init_pos = int(subst_row["Col_384"].iloc[0]) - 1
         col_positions_384 = [list(range(1, 23, 2)), list(range(2, 23, 2))]
-        for col_i, conc in enumerate(list(dilutions["Concentration"])):
+        for col_i, conc in enumerate(list(dilutions["Concentration"].unique())):
             # Add concentration:
             subst_row["Concentration"] = conc
             # Add corresponding column:
@@ -478,11 +478,11 @@ def mic_results(df, filepath, thresholds=[20, 50]):
         mic_records.append(record)
     # Drop entries where no MIC could be determined
     mic_df = pd.DataFrame.from_records(mic_records)
-    mic_df.dropna(
-        subset=[f"MIC{threshold} in µM" for threshold in thresholds],
-        how="all",
-        inplace=True,
-    )
+    # mic_df.dropna(
+    #     subset=[f"MIC{threshold} in µM" for threshold in thresholds],
+    #     how="all",
+    #     inplace=True,
+    # )
     mic_df.round(2).to_excel(os.path.join(filepath, "MIC_Results_AllDatasets_longformat.xlsx"), index=False)
     for dataset, dataset_grp in mic_df.groupby(["Dataset"]):
         pivot_multiindex_df = pd.pivot_table(
@@ -519,6 +519,7 @@ def mic_results(df, filepath, thresholds=[20, 50]):
             #     how="all",
             #     inplace=True,
             # )
+            organisms_thresholded_mics.fillna("NA", inplace=True)
             organisms_thresholded_mics.to_excel(
                 os.path.join(
                     resultpath, f"{dataset[0]}_MIC{threshold}_results.xlsx"
