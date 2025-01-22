@@ -3,13 +3,18 @@
 import pandas as pd
 import altair as alt
 from functools import cached_property
+from dataclasses import dataclass
+
+import os
+import pathlib
 
 import string
 
 
-from .utility import get_rows_cols, mapapply_96_to_384
+from .utility import get_rows_cols, mapapply_96_to_384, get_upsetplot_df
 from .parser import parse_readerfiles, read_inputfile, parse_mappingfile
-from .process import preprocess
+from .process import preprocess, get_thresholded_subset
+from .plot import plateheatmaps, UpSetAltair
 
 
 class Experiment:
@@ -38,11 +43,35 @@ class Experiment:
         self._rawfiles_folderpath = rawfiles_folderpath
         self.rawdata = parse_readerfiles(rawfiles_folderpath)
 
-    # def save_plots(self, figuredir: str):
-    # def save_tables(self, tabledir: str):
-    # def save(self, resultdir: str):
+    # def save_plots(self, figuredir: str, result_plots: list[Resultfigure]):
+    #     pass
+    def save_tables(self, resultpath: str):
+        """
+        Save result tables to "<resultpath>".
+        Creates corresponding folders for each dataset.
+        """
+        for result in self._resulttables:  # cached property of subclasses
+            filedir = os.path.join(resultpath, result.dataset)
+            pathlib.Path(filedir).mkdir(parents=True, exist_ok=True)
+            result.table.to_excel(
+                os.path.join(filedir, f"{result.table_basename}.xlsx"), index=False
+            )
+            result.table.to_csv(
+                os.path.join(filedir, f"{result.table_basename}.csv"), index=False
+            )
+
+    # def save(self, resultpath: str):
     #     self.save_plots()
     #     self.save_tables()
+
+
+
+@dataclass
+class Result:
+    dataset: str
+    file_basename: str
+    table: pd.DataFrame | None = None
+    figure: alt.Chart | None = None
 
 
 class Precipitation(Experiment):
@@ -154,7 +183,7 @@ class PrimaryScreen(Experiment):
         negative_controls: str = "Bacteria + Medium",
         blanks: str = "Medium",
         norm_by_barcode: str = "AcD Barcode 384",
-        thresholds : list[float] = [50.0],
+        thresholds: list[float] = [50.0],
     ):
         # TODO: inherit the save_* functions from Experiment superclass
         super().__init__(rawfiles_folderpath, plate_type)
@@ -179,6 +208,12 @@ class PrimaryScreen(Experiment):
         self._negative_controls = negative_controls
         self._blanks = blanks
         self._norm_by_barcode = norm_by_barcode
+        self.thresholds = thresholds
+        self._processed_only_substances = self.processed[
+            (self.processed["Dataset"] != "Reference")
+            & (self.processed["Dataset"] != "Positive Control")
+            & (self.processed["Dataset"] != "Blank")
+        ]
 
     @cached_property
     def mapped_input_df(self):
@@ -218,17 +253,62 @@ class PrimaryScreen(Experiment):
     def processed(self):
         return preprocess(
             self.mapped_input_df,
-            substance_id = self._substance_id,
-            measurement = self._measurement_label.strip(
+            substance_id=self._substance_id,
+            measurement=self._measurement_label.strip(
                 "Raw "
             ),  # I know this is weird, its because of how background_normalize_zfactor works,
-            negative_controls = self._negative_controls,
-            blanks = self._blanks,
-            norm_by_barcode = self._norm_by_barcode,
+            negative_controls=self._negative_controls,
+            blanks=self._blanks,
+            norm_by_barcode=self._norm_by_barcode,
         )
 
     @cached_property
-    def results(self):
+    def plateheatmap(self):
+        return plateheatmaps(
+            self.processed,
+            substance_id=self._substance_id,
+            negative_control=self._negative_controls,
+            blank=self._blanks,
+            barcode=self._norm_by_barcode,
+        )
+
+
+    @cached_property
+    def _resultfigures(self):
+        result_figures = []
+        result_figures.append(
+            Result("QualityControl", "plateheatmaps", figure=self.plateheatmap)
+        )
+
+        for threshold in self.thresholds:
+            subset = get_thresholded_subset(
+                self.processed_only_substances,
+                id_column=self._substance_id,
+                negative_controls=self._negative_controls,
+                blanks=self._blanks,
+                threshold=threshold,
+            )
+            for dataset, sub_df in subset.groupby("Dataset"):
+                dummy_df = get_upsetplot_df(sub_df, counts_column=self._substance_id)
+
+                result_figures.append(
+                    Result(
+                        dataset,
+                        f"UpSetPlot_{dataset}",
+                        figure=UpSetAltair(dummy_df, title=dataset),
+                    )
+                )
+        return result_figures
+
+    @cached_property
+    def _resulttables(self):
+        """
+        Retrieves result tables and returns them like list[Resulttable]
+        where Resulttable is a dataclass collecting meta information about the plot.
+        """
+        # result_plots = dict() # {"filepath": plot}
+        result_tables = []
+
         df = self.processed.copy()
         df = df[
             (df["Dataset"] != "Reference")
@@ -251,8 +331,71 @@ class PrimaryScreen(Experiment):
             },
         ).reset_index()
         pivot_df.columns = [" ".join(x).strip() for x in pivot_df.columns.ravel()]
+        for threshold in self.thresholds:
+            pivot_df[f"Relative Growth < {threshold}"] = pivot_df.groupby(
+                ["Internal ID", "Organism", "Dataset"]
+            )["Relative Optical Density mean"].transform(lambda x: x < threshold)
 
-    # def plateheatmap(self):
+            for dataset, dataset_grp in pivot_df.groupby("Dataset"):
+                # dataset = dataset[0]
+                # resultpath = os.path.join(filepath, dataset)
+                # result_tables[f"{dataset}_all_results"] = dataset_grp
+                result_tables.append(
+                    Result(dataset, f"{dataset}_all_results", table=dataset_grp)
+                )
+
+                pivot_multiindex_df = pd.pivot_table(
+                    dataset_grp,
+                    values=["Relative Optical Density mean"],
+                    index=["Internal ID", "Dataset", "Concentration"],
+                    columns="Organism",
+                ).reset_index()
+                cols = list(pivot_multiindex_df.columns.droplevel())
+                cols[:3] = list(map(lambda x: x[0], pivot_multiindex_df.columns[:3]))
+                pivot_multiindex_df.columns = cols
+
+                # Apply threshold (active in any organism)
+                thresholded_pivot = pivot_multiindex_df.iloc[
+                    list(
+                        pivot_multiindex_df.iloc[:, 3:].apply(
+                            lambda x: any(list(map(lambda i: i < threshold, x))), axis=1
+                        )
+                    )
+                ]
+
+                thresholded_pivot = pivot_multiindex_df.iloc[
+                    list(
+                        pivot_multiindex_df.iloc[:, 3:].apply(
+                            lambda x: any(list(map(lambda i: i < threshold, x))), axis=1
+                        )
+                    )
+                ]
+
+                # Sort by columns each organism after the other
+                # return pivot_multiindex_df.sort_values(by=cols[3:])
+
+                # Sort rows by mean between the organisms (lowest mean activity first)
+                results_sorted_by_mean_activity = thresholded_pivot.iloc[
+                    thresholded_pivot.iloc[:, 3:].mean(axis=1).argsort()
+                ]
+                # result_tables[f"{dataset}_threshold{round(threshold)}_results"] = results_sorted_by_mean_activity
+                result_tables.append(
+                    Result(
+                        dataset,
+                        f"{dataset}_threshold{round(threshold)}_results",
+                        table=results_sorted_by_mean_activity,
+                    )
+                )
+        return result_tables
+
+    @cached_property
+    def results(self):
+        """
+        Retrieves result tables (from self._resulttables)
+        and returns them in a dictionary like:
+            {"<filepath>": pd.DataFrame}
+        """
+        return {tbl.file_basename: tbl.table for tbl in self._resulttables}
 
 
 class MIC(Experiment):  # Minimum Inhibitory Concentration
