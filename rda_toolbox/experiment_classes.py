@@ -45,6 +45,7 @@ class Experiment:
 
     # def save_plots(self, figuredir: str, result_plots: list[Resultfigure]):
     #     pass
+
     def save_tables(self, resultpath: str):
         """
         Save result tables to "<resultpath>".
@@ -60,10 +61,19 @@ class Experiment:
                 os.path.join(filedir, f"{result.table_basename}.csv"), index=False
             )
 
+    def save_plots(self, resultpath: str, fileformats: list[str] = ["xlsx", "csv"]):
+        for result in self._resultfigures:  # cached property of subclasses
+            filedir = os.path.join(resultpath, result.dataset)
+            pathlib.Path(filedir).mkdir(parents=True, exist_ok=True)
+            for file_format in fileformats:
+                result.figure.save(
+                    os.path.join(filedir, f"{result.table_basename}.{file_format}"),
+                    index=False,
+                )
+
     # def save(self, resultpath: str):
     #     self.save_plots()
     #     self.save_tables()
-
 
 
 @dataclass
@@ -169,6 +179,9 @@ class Precipitation(Experiment):
 
 
 class PrimaryScreen(Experiment):
+    """
+    Primary screen experiment. Usually done using only 1 concentration.
+    """
     def __init__(
         self,
         rawfiles_folderpath: str,
@@ -184,6 +197,7 @@ class PrimaryScreen(Experiment):
         blanks: str = "Medium",
         norm_by_barcode: str = "AcD Barcode 384",
         thresholds: list[float] = [50.0],
+        precipitation_rawfilepath: str | None = None,
     ):
         # TODO: inherit the save_* functions from Experiment superclass
         super().__init__(rawfiles_folderpath, plate_type)
@@ -209,11 +223,20 @@ class PrimaryScreen(Experiment):
         self._blanks = blanks
         self._norm_by_barcode = norm_by_barcode
         self.thresholds = thresholds
+        self.precipitation = (
+            Precipitation(precipitation_rawfilepath)
+            if precipitation_rawfilepath
+            else None
+        )
         self._processed_only_substances = self.processed[
             (self.processed["Dataset"] != "Reference")
             & (self.processed["Dataset"] != "Positive Control")
             & (self.processed["Dataset"] != "Blank")
         ]
+        #     Precipitation(precipitation_rawfilepath)
+        #     if precipitation_rawfilepath
+        #     else None
+        # )
 
     @cached_property
     def mapped_input_df(self):
@@ -249,8 +272,20 @@ class PrimaryScreen(Experiment):
             print(f"{ast_barcode} -> {ast_plate["AcD Barcode 384"].unique()}")
         return result_df
 
+    # def test(self):
+    #     return self.precipitation
+    # @cached_property
+    # def precipitation(self):
+    #     if precipitation_rawfilepath:
+    #         return Precipitation(precipitation_rawfilepath)
+    #     else:
+    #         return None
+
     @cached_property
     def processed(self):
+        # TODO: Add precipitation data :)
+        if self.precipitation:
+            print(self.precipitation.results.loc[:, ["Row_384", "Col_384", "AcD Barcode 384", "Precipitated"]])
         return preprocess(
             self.mapped_input_df,
             substance_id=self._substance_id,
@@ -271,7 +306,6 @@ class PrimaryScreen(Experiment):
             blank=self._blanks,
             barcode=self._norm_by_barcode,
         )
-
 
     @cached_property
     def _resultfigures(self):
@@ -396,6 +430,9 @@ class PrimaryScreen(Experiment):
             {"<filepath>": pd.DataFrame}
         """
         return {tbl.file_basename: tbl.table for tbl in self._resulttables}
+
+    # @cached_property
+    # def precipitation(self, precip_data):
 
 
 class MIC(Experiment):  # Minimum Inhibitory Concentration
