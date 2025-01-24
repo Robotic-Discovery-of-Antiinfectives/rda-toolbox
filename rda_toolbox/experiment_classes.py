@@ -109,7 +109,7 @@ class Precipitation(Experiment):
                 }
             )
         else:
-            if not "Layout" in background_locations:
+            if "Layout" not in background_locations:
                 background_locations["Layout"] = "Background"
             self.background_locations = background_locations.rename(
                 columns={
@@ -169,12 +169,25 @@ class Precipitation(Experiment):
                 alt.value("white"),
             ),
         )
-        return alt.layer(heatmap, text).facet(
-            column="AcD Barcode 384",
-            title=alt.Title(
-                "Precipitation Test",
-                subtitle=[f"Limit of Quantification: {self.limit_of_quantification}"],
-            ),
+        if (
+            len(self.results["AcD Barcode 384"].unique()) % 2 == 0
+        ):  # even amount of AcD Barcodes
+            col_num = 4
+        else:  # uneven amount of AcD Barcodes
+            col_num = 3
+        return (
+            alt.layer(heatmap, text)
+            .facet(
+                facet="AcD Barcode 384",
+                title=alt.Title(
+                    "Precipitation Test",
+                    subtitle=[
+                        f"Limit of Quantification: {self.limit_of_quantification}"
+                    ],
+                ),
+                columns=col_num,
+            )
+            .resolve_axis(x="independent", y="independent")
         )
 
 
@@ -182,6 +195,7 @@ class PrimaryScreen(Experiment):
     """
     Primary screen experiment. Usually done using only 1 concentration.
     """
+
     def __init__(
         self,
         rawfiles_folderpath: str,
@@ -285,7 +299,11 @@ class PrimaryScreen(Experiment):
     def processed(self):
         # TODO: Add precipitation data :)
         if self.precipitation:
-            print(self.precipitation.results.loc[:, ["Row_384", "Col_384", "AcD Barcode 384", "Precipitated"]])
+            print(
+                self.precipitation.results.loc[
+                    :, ["Row_384", "Col_384", "AcD Barcode 384", "Precipitated"]
+                ]
+            )
         return preprocess(
             self.mapped_input_df,
             substance_id=self._substance_id,
