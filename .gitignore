@@ -18,4 +18,6 @@
 .venv
 /poetry.toml
 
+.ropeproject
+
 __pycache__/
