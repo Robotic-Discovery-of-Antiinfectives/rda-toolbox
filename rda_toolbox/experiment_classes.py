@@ -96,7 +96,7 @@ class Precipitation(Experiment):
         rawfiles_folderpath: str,
         plate_type: int = 384,  # Define default plate_type for experiment
         measurement_label: str = "Raw Optical Density",
-        background_locations: type[None | pd.DataFrame] = None,
+        background_locations: None | pd.DataFrame = None,
     ):
         super().__init__(rawfiles_folderpath, plate_type)
         self._measurement_label = measurement_label
