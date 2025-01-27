@@ -11,7 +11,13 @@ import pathlib
 import string
 
 
-from .utility import get_rows_cols, mapapply_96_to_384, get_upsetplot_df
+from .utility import (
+    get_rows_cols,
+    mapapply_96_to_384,
+    get_upsetplot_df,
+    get_mapping_dict,
+    add_precipitation,
+)
 from .parser import parse_readerfiles, read_inputfile, parse_mappingfile
 from .process import preprocess, get_thresholded_subset
 from .plot import plateheatmaps, UpSetAltair
@@ -232,6 +238,7 @@ class PrimaryScreen(Experiment):
             motherplate_column="AsT Barcode 384",
             childplate_column="AcD Barcode 384",
         )
+        self._mapping_dict = get_mapping_dict(self._mapping_df)
         self._substance_id = substance_id
         self._negative_controls = negative_controls
         self._blanks = blanks
@@ -241,6 +248,13 @@ class PrimaryScreen(Experiment):
             Precipitation(precipitation_rawfilepath)
             if precipitation_rawfilepath
             else None
+        )
+        self.rawdata = (  # Overwrite rawdata if precipitation data is available
+            self.rawdata
+            if self.precipitation is None
+            else add_precipitation(
+                self.rawdata, self.precipitation.results, self._mapping_dict
+            )
         )
         self._processed_only_substances = self.processed[
             (self.processed["Dataset"] != "Reference")
@@ -281,29 +295,23 @@ class PrimaryScreen(Experiment):
 
         for ast_barcode, ast_plate in result_df.groupby("AsT Barcode 384"):
             print(
-                f"AsT Plate {ast_barcode} has size: {len(ast_plate)//len(ast_plate['AcD Barcode 384'].unique())}"
+                f"AsT Plate {ast_barcode} has size: {
+                    len(ast_plate) // len(ast_plate['AcD Barcode 384'].unique())
+                }"
             )
-            print(f"{ast_barcode} -> {ast_plate["AcD Barcode 384"].unique()}")
+            print(f"{ast_barcode} -> {ast_plate['AcD Barcode 384'].unique()}")
         return result_df
 
-    # def test(self):
-    #     return self.precipitation
-    # @cached_property
-    # def precipitation(self):
-    #     if precipitation_rawfilepath:
-    #         return Precipitation(precipitation_rawfilepath)
-    #     else:
-    #         return None
 
     @cached_property
     def processed(self):
         # TODO: Add precipitation data :)
-        if self.precipitation:
-            print(
-                self.precipitation.results.loc[
-                    :, ["Row_384", "Col_384", "AcD Barcode 384", "Precipitated"]
-                ]
-            )
+        # if self.precipitation:
+        #     print(
+        #         self.precipitation.results.loc[
+        #             :, ["Row_384", "Col_384", "AcD Barcode 384", "Precipitated"]
+        #         ]
+        #     )
         return preprocess(
             self.mapped_input_df,
             substance_id=self._substance_id,
@@ -334,7 +342,7 @@ class PrimaryScreen(Experiment):
 
         for threshold in self.thresholds:
             subset = get_thresholded_subset(
-                self.processed_only_substances,
+                self._processed_only_substances,
                 id_column=self._substance_id,
                 negative_controls=self._negative_controls,
                 blanks=self._blanks,

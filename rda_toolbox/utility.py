@@ -397,3 +397,24 @@ def save_plot_per_dataset(
                     f"{dataset}_{plotname}.{fformat}",
                 )
             )
+
+def get_mapping_dict(mapping_df: pd.DataFrame) -> dict[str, list[str]]:
+    mapping_dict = {}
+    for mother_barcode, grp in mapping_df.groupby("AsT Barcode 384"):
+        mapping_dict[mother_barcode] = list(grp["AcD Barcode 384"])
+
+    return mapping_dict
+
+
+def add_precipitation(rawdata, precipitation, mapping_dict):
+    precip_all_acd_barcodes = []
+    for acd_barcode, precip_grp in precipitation.groupby("AcD Barcode 384"):
+        for parent_barcode, child_barcodes in mapping_dict.items():
+            if acd_barcode in child_barcodes:
+                for child_barcode in child_barcodes:
+                    acd_precip = precip_grp.copy()
+                    acd_precip["AcD Barcode 384"] = child_barcode
+                    precip_all_acd_barcodes.append(acd_precip)
+                # print(acd_barcode, child_barcodes)
+    mapped_precipitation = pd.concat(precip_all_acd_barcodes).loc[:, ["AcD Barcode 384", "Row_384", "Col_384", "Precipitated"]]
+    return pd.merge(rawdata, mapped_precipitation)
