@@ -17,6 +17,8 @@ from .utility import (
     get_upsetplot_df,
     get_mapping_dict,
     add_precipitation,
+    _save_tables,
+    _save_figures,
 )
 from .parser import parse_readerfiles, read_inputfile, parse_mappingfile
 from .process import preprocess, get_thresholded_subset
@@ -49,35 +51,7 @@ class Experiment:
         self._rawfiles_folderpath = rawfiles_folderpath
         self.rawdata = parse_readerfiles(rawfiles_folderpath)
 
-    # def save_plots(self, figuredir: str, result_plots: list[Resultfigure]):
-    #     pass
-
-    def save_tables(self, resultpath: str):
-        """
-        Save result tables to "<resultpath>".
-        Creates corresponding folders for each dataset.
-        """
-        for result in self._resulttables:  # cached property of subclasses
-            filedir = os.path.join(resultpath, result.dataset)
-            pathlib.Path(filedir).mkdir(parents=True, exist_ok=True)
-            result.table.to_excel(
-                os.path.join(filedir, f"{result.table_basename}.xlsx"), index=False
-            )
-            result.table.to_csv(
-                os.path.join(filedir, f"{result.table_basename}.csv"), index=False
-            )
-
-    def save_plots(self, resultpath: str, fileformats: list[str] = ["xlsx", "csv"]):
-        for result in self._resultfigures:  # cached property of subclasses
-            filedir = os.path.join(resultpath, result.dataset)
-            pathlib.Path(filedir).mkdir(parents=True, exist_ok=True)
-            for file_format in fileformats:
-                result.figure.save(
-                    os.path.join(filedir, f"{result.table_basename}.{file_format}"),
-                    index=False,
-                )
-
-    # def save(self, resultpath: str):
+# def save(self, resultpath: str):
     #     self.save_plots()
     #     self.save_tables()
 
@@ -220,6 +194,7 @@ class PrimaryScreen(Experiment):
         precipitation_rawfilepath: str | None = None,
     ):
         # TODO: inherit the save_* functions from Experiment superclass
+        # TODO: move the save_plots and save_tables functions to .utility and just use them...
         super().__init__(rawfiles_folderpath, plate_type)
         self._measurement_label = measurement_label
         self._mappingfile_path = mappingfile_path
@@ -301,7 +276,6 @@ class PrimaryScreen(Experiment):
             )
             print(f"{ast_barcode} -> {ast_plate['AcD Barcode 384'].unique()}")
         return result_df
-
 
     @cached_property
     def processed(self):
@@ -457,8 +431,13 @@ class PrimaryScreen(Experiment):
         """
         return {tbl.file_basename: tbl.table for tbl in self._resulttables}
 
-    # @cached_property
-    # def precipitation(self, precip_data):
+
+    def save_figures(self, resultpath, fileformats: list[str] = ["svg", "html"]):
+        _save_figures(resultpath, self._resultfigures, fileformats=fileformats)
+
+
+    def save_tables(self, resultpath, fileformats: list[str] = ["xlsx", "csv"]):
+        _save_tables(resultpath, self._resulttables, fileformats=fileformats)
 
 
 class MIC(Experiment):  # Minimum Inhibitory Concentration

@@ -86,7 +86,8 @@ def map_96_to_384(
             np.array_split(list(string.ascii_uppercase)[0:16], 8),
         )
     )
-    colmapping = dict(zip(list(range(1, 13)), np.array_split(list(range(1, 25)), 12)))
+    colmapping = dict(
+        zip(list(range(1, 13)), np.array_split(list(range(1, 25)), 12)))
     row_384 = rowmapping[row][0 if quadrant in [1, 2] else 1]
     col_384 = colmapping[col][0 if quadrant in [1, 3] else 1]
     return row_384, col_384
@@ -154,7 +155,8 @@ def get_upsetplot_df(df, set_column="Organism", counts_column="ID"):
     *Thanks to: https://stackoverflow.com/questions/37381862/get-dummies-for-pandas-column-containing-list*
     """
     tmp_df = (
-        df.groupby(counts_column)[set_column].apply(lambda x: x.unique()).reset_index()
+        df.groupby(counts_column)[set_column].apply(
+            lambda x: x.unique()).reset_index()
     )
     dummies_df = (
         pd.get_dummies(
@@ -177,7 +179,8 @@ def get_upsetplot_df(df, set_column="Organism", counts_column="ID"):
     # remove "{set_column}_" from set column labels
     dummies_df.columns = list(
         map(
-            lambda x: "".join(x.split("_")[1:]) if x.startswith(set_column) else x,
+            lambda x: "".join(x.split("_")[1:]) if x.startswith(
+                set_column) else x,
             dummies_df.columns,
         )
     )
@@ -281,20 +284,24 @@ def prepare_visualization(df, by_id="Internal ID", whisker_width=1):
         ["Replicate"]
     ].transform("count")
     df["Mean Relative Optical Density"] = (
-        df.groupby([by_id, "Concentration", "Organism"])[["Relative Optical Density"]]
+        df.groupby([by_id, "Concentration", "Organism"])[
+            ["Relative Optical Density"]]
         .transform("mean")
         .round(2)
     )
     df["Std. Relative Optical Density"] = (
-        df.groupby([by_id, "Concentration", "Organism"])[["Relative Optical Density"]]
+        df.groupby([by_id, "Concentration", "Organism"])[
+            ["Relative Optical Density"]]
         .transform("std")
         .round(2)
     )
     df["uerror"] = (
-        df["Mean Relative Optical Density"] + df["Std. Relative Optical Density"]
+        df["Mean Relative Optical Density"] +
+        df["Std. Relative Optical Density"]
     )
     df["lerror"] = (
-        df["Mean Relative Optical Density"] - df["Std. Relative Optical Density"]
+        df["Mean Relative Optical Density"] -
+        df["Std. Relative Optical Density"]
     )
 
     tmp_list = []
@@ -367,16 +374,13 @@ def save_plot_per_dataset(
         plotname = plotfunc.__name__
         if plotname == "<lambda>":
             raise TypeError(
-                "Please provide a plotname when using a lambda function."
-            )
+                "Please provide a plotname when using a lambda function.")
 
     data = data.loc[
         (data["Dataset"] != "Negative Control") & (data["Dataset"] != "Blank")
     ]
     reference_df = data.loc[data["Dataset"] == "Reference"]
-    for dataset in filter(
-        lambda x: x != "Reference", data["Dataset"].unique()
-    ):
+    for dataset in filter(lambda x: x != "Reference", data["Dataset"].unique()):
         dataset_data = data.loc[data["Dataset"] == dataset]
         if "AcD Barcode 384" in dataset_data:
             dataset_barcodes = list(dataset_data["AcD Barcode 384"].unique())
@@ -390,13 +394,20 @@ def save_plot_per_dataset(
         folder_location = os.path.join(location, dataset)
         pathlib.Path(folder_location).mkdir(parents=True, exist_ok=True)
         for fformat in saveformats:
-            print("Saving: ", os.path.join(folder_location, f"{dataset}_{plotname}.{fformat}",))
+            print(
+                "Saving: ",
+                os.path.join(
+                    folder_location,
+                    f"{dataset}_{plotname}.{fformat}",
+                ),
+            )
             set_plot.save(
                 os.path.join(
                     folder_location,
                     f"{dataset}_{plotname}.{fformat}",
                 )
             )
+
 
 def get_mapping_dict(mapping_df: pd.DataFrame) -> dict[str, list[str]]:
     mapping_dict = {}
@@ -416,5 +427,35 @@ def add_precipitation(rawdata, precipitation, mapping_dict):
                     acd_precip["AcD Barcode 384"] = child_barcode
                     precip_all_acd_barcodes.append(acd_precip)
                 # print(acd_barcode, child_barcodes)
-    mapped_precipitation = pd.concat(precip_all_acd_barcodes).loc[:, ["AcD Barcode 384", "Row_384", "Col_384", "Precipitated"]]
+    mapped_precipitation = pd.concat(precip_all_acd_barcodes).loc[
+        :, ["AcD Barcode 384", "Row_384", "Col_384", "Precipitated"]
+    ]
     return pd.merge(rawdata, mapped_precipitation)
+
+
+def _save_tables(resultpath: str, resulttables, fileformats: list[str] = ["xlsx", "csv"]):
+    """
+    Save result tables to "<resultpath>".
+    Creates corresponding folders for each dataset.
+    """
+    for result in resulttables:  # cached property of subclasses
+        filedir = os.path.join(resultpath, result.dataset)
+        pathlib.Path(filedir).mkdir(parents=True, exist_ok=True)
+        if "xlsx" or "excel" in fileformats:
+            result.table.to_excel(
+                os.path.join(filedir, f"{result.file_basename}.xlsx"), index=False
+            )
+        if "csv" in fileformats:
+            result.table.to_csv(
+                os.path.join(filedir, f"{result.file_basename}.csv"), index=False
+            )
+
+
+def _save_figures(resultpath: str, resultfigures, fileformats: list[str] = ["svg", "html"]):
+    for result in resultfigures:  # cached property of subclasses
+        filedir = os.path.join(resultpath, result.dataset)
+        pathlib.Path(filedir).mkdir(parents=True, exist_ok=True)
+        for file_format in fileformats:
+            result.figure.save(
+                os.path.join(filedir, f"{result.file_basename}.{file_format}"),
+            )
