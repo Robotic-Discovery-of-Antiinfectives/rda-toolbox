@@ -21,7 +21,7 @@ from .utility import (
     _save_figures,
 )
 from .parser import parse_readerfiles, read_inputfile, parse_mappingfile
-from .process import preprocess, get_thresholded_subset
+from .process import preprocess, get_thresholded_subset, mic_process_inputs
 from .plot import plateheatmaps, UpSetAltair
 
 
@@ -51,9 +51,10 @@ class Experiment:
         self._rawfiles_folderpath = rawfiles_folderpath
         self.rawdata = parse_readerfiles(rawfiles_folderpath)
 
+
 # def save(self, resultpath: str):
-    #     self.save_plots()
-    #     self.save_tables()
+#     self.save_plots()
+#     self.save_tables()
 
 
 @dataclass
@@ -241,8 +242,34 @@ class PrimaryScreen(Experiment):
         #     else None
         # )
 
+    def check_substances(self):
+        """
+        Do some sanity checks for the substances table.
+        - Check if all necessary columns are present.
+        - Check if substances contains missing values.
+        - Check if there are duplicate Internal IDs (references excluded)
+        """
+        # if not all(column in self._substances_unmapped.columns for column in necessary_columns):
+        #     raise ValueError(
+        #         f"Not all necessary columns are present in the input table.\n(Necessary columns: {necessary_columns})"
+        #     )
+        # # Check if all of the necessary column are complete:
+        # if substances[necessary_columns].isnull().values.any():
+        #     raise ValueError(
+        #         "Input table incomplete, contains NA (missing) values."
+        #     )
+        # # Check if there are duplicates in the internal IDs (apart from references)
+        # if any(substances[substances["Dataset"] != "Reference"]["Internal ID"].duplicated()):
+        #     raise ValueError("Duplicate Internal IDs.")
+        pass
+
     @cached_property
     def mapped_input_df(self):
+        """
+        Does mapping of the inputfile describing the tested substances with the
+        corresponding mappingfile(s).
+        *Basically replaces rda.process.primary_process_inputs() function so all the variables and intermediate results are available via the class*
+        """
         control_wbarcodes = []
         # multiply controls with number of AsT plates to later merge them with substances df
         for origin_barcode in list(self.substances["AsT Barcode 384"].unique()):
@@ -279,13 +306,6 @@ class PrimaryScreen(Experiment):
 
     @cached_property
     def processed(self):
-        # TODO: Add precipitation data :)
-        # if self.precipitation:
-        #     print(
-        #         self.precipitation.results.loc[
-        #             :, ["Row_384", "Col_384", "AcD Barcode 384", "Precipitated"]
-        #         ]
-        #     )
         return preprocess(
             self.mapped_input_df,
             substance_id=self._substance_id,
@@ -310,9 +330,15 @@ class PrimaryScreen(Experiment):
     @cached_property
     def _resultfigures(self):
         result_figures = []
+        # Add QualityControl overview of the plates as heatmaps:
         result_figures.append(
             Result("QualityControl", "plateheatmaps", figure=self.plateheatmap)
         )
+        # If precipitation testing was done, add it to QC result figures:
+        if self.precipitation:
+            result_figures.append(
+                Result("QualityControl", "Precipitation_Heatmap", figure=self.precipitation.plateheatmap())
+            )
 
         for threshold in self.thresholds:
             subset = get_thresholded_subset(
@@ -431,10 +457,8 @@ class PrimaryScreen(Experiment):
         """
         return {tbl.file_basename: tbl.table for tbl in self._resulttables}
 
-
     def save_figures(self, resultpath, fileformats: list[str] = ["svg", "html"]):
         _save_figures(resultpath, self._resultfigures, fileformats=fileformats)
-
 
     def save_tables(self, resultpath, fileformats: list[str] = ["xlsx", "csv"]):
         _save_tables(resultpath, self._resulttables, fileformats=fileformats)
@@ -444,12 +468,87 @@ class MIC(Experiment):  # Minimum Inhibitory Concentration
     def __init__(
         self,
         rawfiles_folderpath,
+        inputfile_path,
+        mp_ast_mapping_filepath,
+        ast_acd_mapping_filepath,
         plate_type=384,  # Define default plate_type for experiment
-        measurement_label="Raw Optical Density",
+        measurement_label: str ="Raw Optical Density",
+        map_rowname: str = "Row_96",
+        map_colname: str = "Col_96",
+        q_name: str = "Quadrant",
+        substance_id: str = "Internal ID",
+        negative_controls: str = "Bacteria + Medium",
+        blanks: str = "Medium",
+        norm_by_barcode: str = "AcD Barcode 384",
+        thresholds: list[float] = [50.0],
+        precipitation_rawfilepath: str | None = None,
     ):
         super().__init__(rawfiles_folderpath, plate_type)
         self._measurement_label = measurement_label
+        self._mapping_df = mic_process_inputs(
+            inputfile_path,
+            mp_ast_mapping_filepath,
+            ast_acd_mapping_filepath,
+            rawfiles_folderpath,
+        )
+        self.precipitation = (
+            Precipitation(precipitation_rawfilepath)
+            if precipitation_rawfilepath
+            else None
+        )
+        self._mapping_dict = get_mapping_dict(self._mapping_df)
+        self._substances_unmapped, self._organisms, self._dilutions, self._controls = (
+            read_inputfile(inputfile_path)
+        )
 
+    @cached_property
+    def mapped_input_df(self):
+        """
+        Does mapping of the inputfile describing the tested substances with the
+        corresponding mappingfile(s).
+        *Basically replaces rda.process.mic_process_inputs() function so all the variables and intermediate results are available via the class*
+        """
+        pass
+
+    @cached_property
+    def processed(self):
+        pass
+
+    @cached_property
+    def plateheatmap(self):
+        pass
+        # return plateheatmaps(
+        #     self.processed,
+        #     substance_id=self._substance_id,
+        #     negative_control=self._negative_controls,
+        #     blank=self._blanks,
+        #     barcode=self._norm_by_barcode,
+        # )
+
+    @cached_property
+    def _resultfigures(self):
+        pass
+    @cached_property
+    def _resulttables(self):
+        pass
     @cached_property
     def results(self):
         pass
+    def save_figures(self, resultpath, fileformats: list[str] = ["svg", "html"]):
+        _save_figures(resultpath, self._resultfigures, fileformats=fileformats)
+
+    def save_tables(self, resultpath, fileformats: list[str] = ["xlsx", "csv"]):
+        _save_tables(resultpath, self._resulttables, fileformats=fileformats)
+        # self.rawdata = (  # Overwrite rawdata if precipitation data is available
+        #     self.rawdata
+        #     if self.precipitation is None
+        #     else add_precipitation(
+        #         self.rawdata, self.precipitation.results, self._mapping_dict
+        #     )
+        # )
+        # self._inputfile_path = inputfile_path
+        # self._mp_to_ast_mappingfile_path = mp_ast_mapping_file
+        # self._ast_to_acd_mappingfile_path = ast_acd_mapping_file
+        # self._substances_unmapped, self._organisms, self._dilutions, self._controls = (
+        #     read_inputfile(inputfile_path)
+        # )

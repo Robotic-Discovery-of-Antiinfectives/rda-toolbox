@@ -412,7 +412,7 @@ def save_plot_per_dataset(
 def get_mapping_dict(mapping_df: pd.DataFrame) -> dict[str, list[str]]:
     mapping_dict = {}
     for mother_barcode, grp in mapping_df.groupby("AsT Barcode 384"):
-        mapping_dict[mother_barcode] = list(grp["AcD Barcode 384"])
+        mapping_dict[mother_barcode] = list(grp["AcD Barcode 384"].unique())
 
     return mapping_dict
 
