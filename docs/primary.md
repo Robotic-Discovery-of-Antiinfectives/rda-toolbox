@@ -2,6 +2,8 @@
 
 
 
+## Read the inputs, initialize the assay class
+
 ```Python
 import rda_toolbox as rda
 
@@ -17,11 +19,35 @@ primary = rda.PrimaryScreen(
 ```
 
 
-Its possible to inspect the assay:
+Its possible to inspect the assay object:
 
 ```Python
 primary.__dict__
 ```
+
+## View in-between results (e.g. in a notebook)
+
+### Tables
+
+```Python
+primary.mapped_input_df
+```
+
+```Python
+primary.processed
+```
+
+```Python
+primary.results
+```
+
+### Visualizations
+
+```Python
+primary.plateheatmap
+```
+
+## Save the results
 
 ```Python
 # Save all tables

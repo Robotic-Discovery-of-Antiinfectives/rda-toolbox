@@ -463,6 +463,10 @@ class PrimaryScreen(Experiment):
     def save_tables(self, resultpath, fileformats: list[str] = ["xlsx", "csv"]):
         _save_tables(resultpath, self._resulttables, fileformats=fileformats)
 
+    # def save(self, projectroot):
+    #     _save_figures()
+    #     _save_tables()
+
 
 class MIC(Experiment):  # Minimum Inhibitory Concentration
     def __init__(
