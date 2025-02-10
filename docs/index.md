@@ -1,17 +1,9 @@
-# Welcome to MkDocs
+# Toolbox for Robotic-assisted Discovery of Antiinfectives
 
-For full documentation visit [mkdocs.org](https://www.mkdocs.org).
+**rda-toolbox** is a high-level Python package which aims to provide collection of functions to read and analyze laboratory data in the field of drug discovery.
 
-## Commands
-
-* `mkdocs new [dir-name]` - Create a new project.
-* `mkdocs serve` - Start the live-reloading docs server.
-* `mkdocs build` - Build the documentation site.
-* `mkdocs -h` - Print help message and exit.
-
-## Project layout
-
-    mkdocs.yml    # The configuration file.
-    docs/
-        index.md  # The documentation homepage.
-        ...       # Other markdown pages, images and other files.
+<span style="color:Orange">
+  **Please note:**<br>
+  If you stumbled across this package by chance, it's probably not for you.<br>
+  The use case is very specifically tailored to the robotics system of the robotics-assisted discovery of new anti-infectives working group.
+</span>

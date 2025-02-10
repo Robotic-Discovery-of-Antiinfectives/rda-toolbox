@@ -5,7 +5,7 @@ description = ""
 authors = ["timoleistner <leistner.timo@googlemail.com>"]
 readme = "README.md"
 repository = "https://github.com/Robotic-Discovery-of-Antiinfectives/rda-toolbox"
-documentation = "https://rda-toolbox.readthedocs.io/en/latest/"
+documentation = "https://robotic-discovery-of-antiinfectives.github.io/rda-toolbox/"
 
 [tool.poetry.dependencies]
 python = "^3.12"
