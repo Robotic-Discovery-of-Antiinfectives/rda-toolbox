@@ -1,0 +1,4 @@
+site_name: Documentation for RDAs Toolbox
+site_url: https://rda-toolbox.readthedocs.io/en/latest/
+theme:
+  name: material
