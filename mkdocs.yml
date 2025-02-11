@@ -1,4 +1,4 @@
-site_name: Documentation for RDAs Toolbox
+site_name: RDA Toolbox Docs
 site_url: https://robotic-discovery-of-antiinfectives.github.io/rda-toolbox/
 theme:
   name: material
