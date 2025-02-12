@@ -7,7 +7,7 @@ from .utility import (
     prepare_visualization,
     get_upsetplot_df,
 )
-from .process import(
+from .process import (
     get_thresholded_subset,
 )
 
@@ -46,7 +46,7 @@ def plateheatmaps(
     barcode="Barcode",
     negative_control="Negative Control",
     blank="Medium",
-):
+) -> alt.vegalite.v5.api.HConcatChart:
     """
     - df: Dataframe with relevant data
     - ID: column name in df containing the unique substance id
@@ -529,7 +529,7 @@ def UpSetAltair(
 def UpSet_per_dataset(
     df: pd.DataFrame,  # processed
     save_formats=["pdf", "svg"],
-    id_column = "Internal ID",
+    id_column="Internal ID",
 ):
     """
     UpsetPlot wrapper function which applies threshold to processed data (without controls, references etc.).
@@ -544,21 +544,13 @@ def UpSet_per_dataset(
     )
 
     for dataset, sub_df in subset.groupby("Dataset"):
-        dummy_df = get_upsetplot_df(
-            sub_df, counts_column=id_column
-        )
+        dummy_df = get_upsetplot_df(sub_df, counts_column=id_column)
         # Create dataset folder if non-existent
-        pathlib.Path(f"../figures/{dataset}").mkdir(
-            parents=True, exist_ok=True
-        )
+        pathlib.Path(f"../figures/{dataset}").mkdir(parents=True, exist_ok=True)
         for save_format in save_formats:
-            filename = (
-                f"../figures/{dataset}/UpSetPlot_{dataset}.{save_format}"
-            )
+            filename = f"../figures/{dataset}/UpSetPlot_{dataset}.{save_format}"
             print("Saving", filename)
-            dataset_upsetplot = rda.UpSetAltair(dummy_df, title=dataset).save(
-                filename
-            )
+            dataset_upsetplot = rda.UpSetAltair(dummy_df, title=dataset).save(filename)
 
 
 def lineplots_facet(df, hline_y=50, by_id="Internal ID", whisker_width=10):
