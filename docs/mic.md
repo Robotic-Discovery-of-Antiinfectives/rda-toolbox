@@ -15,13 +15,19 @@ mic = rda.MIC(
 )
 ```
 
+
+## View in-between results (e.g. in a notebook)
+
 Its possible to inspect the assay object:
 
 ```Python
 mic.__dict__
 ```
 
-## View in-between results (e.g. in a notebook)
+Show how plates are related to each other (hirarchical dictionary):
+```Python
+mic._mapping_dict
+```
 
 ### Tables
 
