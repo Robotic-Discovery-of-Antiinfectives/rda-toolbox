@@ -2,12 +2,19 @@ site_name: RDA Toolbox Docs
 site_url: https://robotic-discovery-of-antiinfectives.github.io/rda-toolbox/
 theme:
   name: material
+  features:
+    - navigation.sections
 nav:
   - Overview: index.md
   - Input Specifications: input.md
-  - Primary Screen: primary.md
-  - MIC: mic.md
-  - utility: utility.md
+  - Assay Evaluation:
+    - Primary Screen: primary.md
+    - MIC: mic.md
+  - Reference:
+    - reference/utility.md
+    - reference/plot.md
+    - reference/parser.md
+    - reference/process.md
 
 markdown_extensions:
   - pymdownx.highlight:
@@ -19,5 +26,43 @@ markdown_extensions:
   - pymdownx.inlinehilite
   - pymdownx.snippets
   - pymdownx.superfences
+  # Python Markdown
+  - abbr
+  - admonition
+  - attr_list
+  - def_list
+  - footnotes
+  - md_in_html
+  - toc:
+      permalink: true
+
+  # Python Markdown Extensions
+  - pymdownx.arithmatex:
+      generic: true
+  - pymdownx.betterem:
+      smart_enable: all
+  - pymdownx.caret
+  - pymdownx.details
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+  - pymdownx.highlight
+  - pymdownx.keys
+  - pymdownx.mark
+  - pymdownx.smartsymbols
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.tasklist:
+      custom_checkbox: true
+  - pymdownx.tilde
+
+
+plugins:
+- mkdocstrings:
+    handlers:
+      python:
+        paths: [.]  # actually not needed, default
+- search
+
 
 repo_url: https://github.com/Robotic-Discovery-of-Antiinfectives/rda-toolbox
