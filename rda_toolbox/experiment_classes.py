@@ -337,7 +337,11 @@ class PrimaryScreen(Experiment):
         # If precipitation testing was done, add it to QC result figures:
         if self.precipitation:
             result_figures.append(
-                Result("QualityControl", "Precipitation_Heatmap", figure=self.precipitation.plateheatmap())
+                Result(
+                    "QualityControl",
+                    "Precipitation_Heatmap",
+                    figure=self.precipitation.plateheatmap(),
+                )
             )
 
         for threshold in self.thresholds:
@@ -476,7 +480,7 @@ class MIC(Experiment):  # Minimum Inhibitory Concentration
         mp_ast_mapping_filepath,
         ast_acd_mapping_filepath,
         plate_type=384,  # Define default plate_type for experiment
-        measurement_label: str ="Raw Optical Density",
+        measurement_label: str = "Raw Optical Density",
         map_rowname: str = "Row_96",
         map_colname: str = "Col_96",
         q_name: str = "Quadrant",
@@ -501,11 +505,23 @@ class MIC(Experiment):  # Minimum Inhibitory Concentration
         self._substances_unmapped, self._organisms, self._dilutions, self._controls = (
             read_inputfile(inputfile_path)
         )
+        self._substance_id = substance_id
+        self._negative_controls = negative_controls
+        self._blanks = blanks
+        self._norm_by_barcode = norm_by_barcode
 
     @property
     def _mapping_dict(self):
-        mp_ast_mapping_dict = get_mapping_dict(self.mapped_input_df, mother_column="MP Barcode 96", child_column="AsT Barcode 384")
-        ast_acd_mapping_dict = get_mapping_dict(self.mapped_input_df, mother_column="AsT Barcode 384", child_column="AcD Barcode 384")
+        mp_ast_mapping_dict = get_mapping_dict(
+            self.mapped_input_df,
+            mother_column="MP Barcode 96",
+            child_column="AsT Barcode 384",
+        )
+        ast_acd_mapping_dict = get_mapping_dict(
+            self.mapped_input_df,
+            mother_column="AsT Barcode 384",
+            child_column="AcD Barcode 384",
+        )
         mapping_dict = {}
         for mp_barcode, ast_barcodes in mp_ast_mapping_dict.items():
             tmp_dict = {}
@@ -513,7 +529,6 @@ class MIC(Experiment):  # Minimum Inhibitory Concentration
                 tmp_dict[ast_barcode] = ast_acd_mapping_dict[ast_barcode]
             mapping_dict[mp_barcode] = tmp_dict
         return mapping_dict
-
 
     @cached_property
     def mapped_input_df(self):
@@ -531,6 +546,16 @@ class MIC(Experiment):  # Minimum Inhibitory Concentration
 
     @cached_property
     def processed(self):
+        return preprocess(
+            self.mapped_input_df,
+            substance_id=self._substance_id,
+            measurement=self._measurement_label.strip(
+                "Raw "
+            ),  # I know this is weird, its because of how background_normalize_zfactor works,
+            negative_controls=self._negative_controls,
+            blanks=self._blanks,
+            norm_by_barcode=self._norm_by_barcode,
+        )
         pass
 
     @cached_property
@@ -547,12 +572,15 @@ class MIC(Experiment):  # Minimum Inhibitory Concentration
     @cached_property
     def _resultfigures(self):
         pass
+
     @cached_property
     def _resulttables(self):
         pass
+
     @cached_property
     def results(self):
         pass
+
     def save_figures(self, resultpath, fileformats: list[str] = ["svg", "html"]):
         _save_figures(resultpath, self._resultfigures, fileformats=fileformats)
 
