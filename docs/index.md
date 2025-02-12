@@ -5,5 +5,5 @@
 <span style="color:Orange">
   **Please note:**<br>
   If you stumbled across this package by chance, it's probably not for you.<br>
-  The use case is very specifically tailored to the robotics system of the robotics-assisted discovery of new anti-infectives working group.
+  The use case is very specifically tailored to the robotics system of the robotics-assisted discovery of new anti-infectives working group at the Leibniz-HKI.
 </span>
