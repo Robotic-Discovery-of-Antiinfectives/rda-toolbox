@@ -12,6 +12,7 @@ python = "^3.12"
 pandas = "^2.2.2"
 numpy = "^2.0.1"
 altair = "^5.4.0"
+mkdocstrings-python = "^1.15.0"
 
 
 [tool.poetry.group.test.dependencies]
