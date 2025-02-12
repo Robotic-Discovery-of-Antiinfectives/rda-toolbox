@@ -488,22 +488,32 @@ class MIC(Experiment):  # Minimum Inhibitory Concentration
         precipitation_rawfilepath: str | None = None,
     ):
         super().__init__(rawfiles_folderpath, plate_type)
+        self._inputfile_path = inputfile_path
+        self._mp_ast_mapping_filepath = mp_ast_mapping_filepath
+        self._ast_acd_mapping_filepath = ast_acd_mapping_filepath
         self._measurement_label = measurement_label
-        self._mapping_df = mic_process_inputs(
-            inputfile_path,
-            mp_ast_mapping_filepath,
-            ast_acd_mapping_filepath,
-            rawfiles_folderpath,
-        )
         self.precipitation = (
             Precipitation(precipitation_rawfilepath)
             if precipitation_rawfilepath
             else None
         )
-        self._mapping_dict = get_mapping_dict(self._mapping_df)
+        # self._mapping_dict = get_mapping_dict(self.mapped_input_df)
         self._substances_unmapped, self._organisms, self._dilutions, self._controls = (
             read_inputfile(inputfile_path)
         )
+
+    @property
+    def _mapping_dict(self):
+        mp_ast_mapping_dict = get_mapping_dict(self.mapped_input_df, mother_column="MP Barcode 96", child_column="AsT Barcode 384")
+        ast_acd_mapping_dict = get_mapping_dict(self.mapped_input_df, mother_column="AsT Barcode 384", child_column="AcD Barcode 384")
+        mapping_dict = {}
+        for mp_barcode, ast_barcodes in mp_ast_mapping_dict.items():
+            tmp_dict = {}
+            for ast_barcode in ast_barcodes:
+                tmp_dict[ast_barcode] = ast_acd_mapping_dict[ast_barcode]
+            mapping_dict[mp_barcode] = tmp_dict
+        return mapping_dict
+
 
     @cached_property
     def mapped_input_df(self):
@@ -512,7 +522,12 @@ class MIC(Experiment):  # Minimum Inhibitory Concentration
         corresponding mappingfile(s).
         *Basically replaces rda.process.mic_process_inputs() function so all the variables and intermediate results are available via the class*
         """
-        pass
+        return mic_process_inputs(
+            self._inputfile_path,
+            self._mp_ast_mapping_filepath,
+            self._ast_acd_mapping_filepath,
+            self._rawfiles_folderpath,
+        )
 
     @cached_property
     def processed(self):
