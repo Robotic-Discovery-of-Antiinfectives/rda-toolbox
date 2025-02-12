@@ -15,6 +15,7 @@ nav:
     - reference/plot.md
     - reference/parser.md
     - reference/process.md
+    - reference/classes.md
 
 markdown_extensions:
   - pymdownx.highlight:
