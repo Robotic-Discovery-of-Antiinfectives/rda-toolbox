@@ -556,18 +556,16 @@ class MIC(Experiment):  # Minimum Inhibitory Concentration
             blanks=self._blanks,
             norm_by_barcode=self._norm_by_barcode,
         )
-        pass
 
     @cached_property
     def plateheatmap(self):
-        pass
-        # return plateheatmaps(
-        #     self.processed,
-        #     substance_id=self._substance_id,
-        #     negative_control=self._negative_controls,
-        #     blank=self._blanks,
-        #     barcode=self._norm_by_barcode,
-        # )
+        return plateheatmaps(
+            self.processed,
+            substance_id=self._substance_id,
+            barcode=self._norm_by_barcode,
+            negative_control=self._negative_controls,
+            blank=self._blanks,
+        )
 
     @cached_property
     def _resultfigures(self):
