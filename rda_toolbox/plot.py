@@ -553,7 +553,9 @@ def UpSet_per_dataset(
             dataset_upsetplot = rda.UpSetAltair(dummy_df, title=dataset).save(filename)
 
 
-def lineplots_facet(df, hline_y=50, by_id="Internal ID", whisker_width=10):
+def lineplots_facet(
+    df, hline_y=50, by_id="Internal ID", whisker_width=10
+) -> alt.vegalite.v5.api.HConcatChart:
     """
     Assay: MIC
     Input: processed_df
