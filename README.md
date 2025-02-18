@@ -13,7 +13,7 @@ The aim is to provide functions to help evaluate the following assays:
 - MIC (Minimum Inhibitory Concentration) Assay
 - Cellviability
 
-### Usage
+### Usage Example
 `pip install rda-toolbox`
 
 or
