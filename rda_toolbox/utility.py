@@ -118,6 +118,13 @@ def mapapply_96_to_384(
     return df
 
 
+def position_to_rowcol(pos: str) -> tuple[str, int]:
+    """
+    Splits a position like "A1" into row and col e.g. ("A", "1").
+    """
+    return pos[0], int(pos[1:])
+
+
 def split_position(
     df: pd.DataFrame,
     position: str = "Position",
@@ -414,8 +421,21 @@ def get_mapping_dict(
     return mapping_dict
 
 
+def lowest_level_dict(mapping_dict):
+    lowest_mapping_dict = {}
+    for d in mapping_dict.values():
+        lowest_mapping_dict.update(d)
+    # check if the dict is already on the lowest level (dict of lists)
+    if type(list(lowest_mapping_dict.values())[0]) is list:
+        return lowest_mapping_dict
+    # else recursively reduce the dict
+    else:
+        return lowest_level_dict(lowest_mapping_dict)
+
+
 def add_precipitation(rawdata, precipitation, mapping_dict):
     precip_all_acd_barcodes = []
+    mapping_dict = lowest_level_dict(mapping_dict)
     for acd_barcode, precip_grp in precipitation.groupby("AcD Barcode 384"):
         for parent_barcode, child_barcodes in mapping_dict.items():
             if acd_barcode in child_barcodes:
