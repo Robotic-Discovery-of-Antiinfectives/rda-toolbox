@@ -13,6 +13,7 @@ import string
 
 from .utility import (
     get_rows_cols,
+    position_to_rowcol,
     mapapply_96_to_384,
     get_upsetplot_df,
     get_mapping_dict,
@@ -22,7 +23,7 @@ from .utility import (
 )
 from .parser import parse_readerfiles, read_inputfile, parse_mappingfile
 from .process import preprocess, get_thresholded_subset, mic_process_inputs
-from .plot import plateheatmaps, UpSetAltair
+from .plot import plateheatmaps, UpSetAltair, lineplots_facet
 
 
 class Experiment:
@@ -49,7 +50,9 @@ class Experiment:
         self._plate_type = plate_type
         self._rows, self._columns = get_rows_cols(plate_type)
         self._rawfiles_folderpath = rawfiles_folderpath
-        self.rawdata = parse_readerfiles(rawfiles_folderpath)
+        self.rawdata = parse_readerfiles(
+            rawfiles_folderpath
+        )  # Get rawdata, this will later be overwritting by adding precipitation, if available
 
 
 # def save(self, resultpath: str):
@@ -69,27 +72,25 @@ class Precipitation(Experiment):
     def __init__(
         self,
         rawfiles_folderpath: str,
+        background_locations: pd.DataFrame | list[str],
         plate_type: int = 384,  # Define default plate_type for experiment
         measurement_label: str = "Raw Optical Density",
-        background_locations: None | pd.DataFrame = None,
     ):
         super().__init__(rawfiles_folderpath, plate_type)
         self._measurement_label = measurement_label
 
-        # Set default background location as 24th column
-        if background_locations is None:
+        # TODO: Check for outlier and print warnings that they exist and will be (or should be) excluded
+        if type(background_locations) is list:
             self.background_locations = pd.DataFrame(
-                {
-                    f"Row_{self._plate_type}": list(
-                        string.ascii_uppercase[: self._rows]
-                    ),
-                    f"Col_{self._plate_type}": [
-                        self._columns for i in range(self._rows)
+                    list(map(position_to_rowcol, background_locations)),
+                    columns = [
+                        f"Row_{self._plate_type}",
+                        f"Col_{self._plate_type}"
                     ],
-                    "Layout": "Background",
-                }
             )
-        else:
+            if "Layout" not in self.background_locations:
+                self.background_locations["Layout"] = "Background"
+        elif type(background_locations) is pd.DataFrame:
             if "Layout" not in background_locations:
                 background_locations["Layout"] = "Background"
             self.background_locations = background_locations.rename(
@@ -119,6 +120,9 @@ class Precipitation(Experiment):
         self.rawdata_w_layout["Precipitated"] = self.rawdata_w_layout[
             self._measurement_label
         ].apply(lambda x: x > self.limit_of_quantification)
+        self.rawdata_w_layout[f"Precipitated at {self._measurement_label}"] = self.rawdata_w_layout[
+            self._measurement_label
+        ].apply(lambda x: x if x > self.limit_of_quantification else None)
         return self.rawdata_w_layout
 
     # let it have its own heatmap function for now:
@@ -193,6 +197,7 @@ class PrimaryScreen(Experiment):
         norm_by_barcode: str = "AcD Barcode 384",
         thresholds: list[float] = [50.0],
         precipitation_rawfilepath: str | None = None,
+        background_locations: pd.DataFrame | list[str] = [f"{row}24" for row in string.ascii_uppercase[:16]]
     ):
         # TODO: inherit the save_* functions from Experiment superclass
         # TODO: move the save_plots and save_tables functions to .utility and just use them...
@@ -221,7 +226,7 @@ class PrimaryScreen(Experiment):
         self._norm_by_barcode = norm_by_barcode
         self.thresholds = thresholds
         self.precipitation = (
-            Precipitation(precipitation_rawfilepath)
+            Precipitation(precipitation_rawfilepath, background_locations=background_locations)
             if precipitation_rawfilepath
             else None
         )
@@ -490,6 +495,7 @@ class MIC(Experiment):  # Minimum Inhibitory Concentration
         norm_by_barcode: str = "AcD Barcode 384",
         thresholds: list[float] = [50.0],
         precipitation_rawfilepath: str | None = None,
+        background_locations: pd.DataFrame | list[str] = [f"{row}24" for row in string.ascii_uppercase[:16]]
     ):
         super().__init__(rawfiles_folderpath, plate_type)
         self._inputfile_path = inputfile_path
@@ -497,9 +503,16 @@ class MIC(Experiment):  # Minimum Inhibitory Concentration
         self._ast_acd_mapping_filepath = ast_acd_mapping_filepath
         self._measurement_label = measurement_label
         self.precipitation = (
-            Precipitation(precipitation_rawfilepath)
+            Precipitation(precipitation_rawfilepath, background_locations=background_locations)
             if precipitation_rawfilepath
             else None
+        )
+        self.rawdata = (  # Overwrite rawdata if precipitation data is available
+            self.rawdata
+            if self.precipitation is None
+            else add_precipitation(
+                self.rawdata, self.precipitation.results, self._mapping_dict
+            )
         )
         # self._mapping_dict = get_mapping_dict(self.mapped_input_df)
         self._substances_unmapped, self._organisms, self._dilutions, self._controls = (
@@ -509,6 +522,15 @@ class MIC(Experiment):  # Minimum Inhibitory Concentration
         self._negative_controls = negative_controls
         self._blanks = blanks
         self._norm_by_barcode = norm_by_barcode
+        self.thresholds = thresholds
+        self._processed_only_substances = self.processed[
+            (self.processed["Dataset"] != "Reference")
+            & (self.processed["Dataset"] != "Positive Control")
+            & (self.processed["Dataset"] != "Blank")
+        ]
+        self._references_results = self.processed.loc[
+            self.processed["Dataset"] == "Reference"
+        ]
 
     @property
     def _mapping_dict(self):
@@ -567,17 +589,214 @@ class MIC(Experiment):  # Minimum Inhibitory Concentration
             blank=self._blanks,
         )
 
+    # def lineplots_facet(self):
+    #    return lineplots_facet(self.processed)
+
     @cached_property
     def _resultfigures(self):
+        result_figures = []
+        result_figures.append(
+            Result("QualityControl", "plateheatmaps", figure=self.plateheatmap)
+        )
+        if self.precipitation:
+            result_figures.append(
+                Result(
+                    "QualityControl",
+                    "Precipitation_Heatmap",
+                    figure=self.precipitation.plateheatmap(),
+                )
+            )
+
+        # Save plots per dataset:
+        for dataset, dataset_data in self._processed_only_substances.groupby("Dataset"):
+            # Look for and add the corresponding references for each dataset:
+            if "AcD Barcode 384" in dataset_data:
+                dataset_barcodes = list(dataset_data["AcD Barcode 384"].unique())
+                corresponding_dataset_references = self._references_results.loc[
+                    (
+                        self._references_results["AcD Barcode 384"].isin(
+                            dataset_barcodes
+                        )
+                    ),
+                    :,
+                ]
+            else:
+                corresponding_dataset_references = pd.DataFrame()
+
+            result_figures.append(
+                Result(
+                    dataset,
+                    f"lineplots_facet_{dataset}",
+                    figure=lineplots_facet(
+                        pd.concat([dataset_data, corresponding_dataset_references])
+                    ),
+                )
+            )
+
+        # Save plots per threshold:
+        for threshold in self.thresholds:
+            subset = get_thresholded_subset(
+                self._processed_only_substances,
+                id_column=self._substance_id,
+                negative_controls=self._negative_controls,
+                blanks=self._blanks,
+                threshold=threshold,
+            )
+            for dataset, sub_df in subset.groupby("Dataset"):
+                dummy_df = get_upsetplot_df(sub_df, counts_column=self._substance_id)
+
+                result_figures.append(
+                    Result(
+                        dataset,
+                        f"UpSetPlot_{dataset}",
+                        figure=UpSetAltair(dummy_df, title=dataset),
+                    )
+                )
+        return result_figures
         pass
 
     @cached_property
     def _resulttables(self):
-        pass
+        """
+        Retrieves result tables and returns them like list[Resulttable]
+        where Resulttable is a dataclass collecting meta information about the plot.
+        """
+        result_tables = []
+        df = self.processed.copy()
+
+        df = df[
+            (df["Dataset"] != "Negative Control") & (df["Dataset"] != "Blank")
+        ].dropna(subset=["Concentration"])
+
+        pivot_df = pd.pivot_table(
+            df,
+            values=["Relative Optical Density", "Replicate", "Z-Factor"],
+            index=[
+                "Internal ID",
+                "External ID",
+                "Organism",
+                "Concentration",
+                "Dataset",
+            ],
+            aggfunc={
+                "Relative Optical Density": ["mean"],
+                "Replicate": ["count"],
+                "Z-Factor": [
+                    "mean",
+                    "std",
+                ],  # does this make sense? with std its usable.
+                # "Z-Factor": ["std"],
+            },
+        ).reset_index()
+
+        pivot_df.columns = [" ".join(x).strip() for x in pivot_df.columns.ravel()]
+
+        mic_records = []
+        for group_names, grp in pivot_df.groupby(
+            ["Internal ID", "External ID", "Organism", "Dataset"]
+        ):
+            internal_id, external_id, organism, dataset = group_names
+            # Sort by concentration just to be sure:
+            grp = grp[
+                [
+                    "Concentration",
+                    "Relative Optical Density mean",
+                    "Z-Factor mean",
+                    "Z-Factor std",
+                ]
+            ].sort_values(by=["Concentration"])
+            # print(grp)
+            # Get rows where the OD is below the given threshold:
+            record = {
+                "Internal ID": internal_id,
+                "External ID": external_id,
+                "Organism": organism,
+                "Dataset": dataset,
+                "Z-Factor mean": list(grp["Z-Factor mean"])[0],
+                "Z-Factor std": list(grp["Z-Factor std"])[0],
+            }
+
+            for threshold in self.thresholds:
+                values_below_threshold = grp[
+                    grp["Relative Optical Density mean"] < threshold
+                ]
+                # thx to jonathan - check if the OD at maximum concentration is below threshold (instead of any concentration)
+                max_conc_below_threshold = list(
+                    grp[grp["Concentration"] == max(grp["Concentration"])][
+                        "Relative Optical Density mean"
+                    ]
+                    < threshold
+                )[0]
+                if not max_conc_below_threshold:
+                    mic = None
+                else:
+                    mic = values_below_threshold.iloc[0]["Concentration"]
+                record[f"MIC{threshold} in µM"] = mic
+            mic_records.append(record)
+        # Drop entries where no MIC could be determined
+        mic_df = pd.DataFrame.from_records(mic_records)
+        result_tables.append(
+            Result("All", "MIC_Results_AllDatasets_longformat", table=mic_df)
+        )
+        # mic_df.round(2).to_excel(os.path.join(filepath, "MIC_Results_AllDatasets_longformat.xlsx"), index=False)
+        for dataset, dataset_grp in mic_df.groupby(["Dataset"]):
+            pivot_multiindex_df = pd.pivot_table(
+                dataset_grp,
+                values=[f"MIC{threshold} in µM" for threshold in self.thresholds]
+                + ["Z-Factor mean", "Z-Factor std"],
+                index=["Internal ID", "External ID", "Dataset"],
+                columns="Organism",
+            ).reset_index()
+
+            # resultpath = os.path.join(filepath, dataset[0])
+
+            # References special case
+            # if dataset[0] == "Reference":
+            #     references_mic_results(df, resultpath, thresholds=thresholds)
+            #     continue # skip for references
+
+            # pathlib.Path(resultpath).mkdir(parents=True, exist_ok=True)
+            for threshold in self.thresholds:
+                organisms_thresholded_mics = pivot_multiindex_df[
+                    ["Internal ID", "External ID", f"MIC{threshold} in µM"]
+                ]
+                cols = list(organisms_thresholded_mics.columns.droplevel())
+                cols[0] = "Internal ID"
+                cols[1] = "External ID"
+                organisms_thresholded_mics.columns = cols
+                organisms_thresholded_mics = organisms_thresholded_mics.sort_values(
+                    by=list(organisms_thresholded_mics.columns)[2:],
+                    na_position="last",
+                )
+                # organisms_thresholded_mics.dropna(
+                #     subset=list(organisms_thresholded_mics.columns)[2:],
+                #     how="all",
+                #     inplace=True,
+                # )
+                organisms_thresholded_mics.fillna("NA", inplace=True)
+                organisms_thresholded_mics.to_excel(
+                    os.path.join(
+                        resultpath, f"{dataset[0]}_MIC{threshold}_results.xlsx"
+                    ),
+                    index=False,
+                )
+
+        return []
 
     @cached_property
     def results(self):
-        pass
+        """
+        Retrieves result tables (from self._resulttables)
+        and returns them in a dictionary like:
+            {"<filepath>": pd.DataFrame}
+        """
+        return {tbl.file_basename: tbl.table for tbl in self._resulttables}
+
+    # def save_figures(self, resultpath, fileformats: list[str] = ["svg", "html"]):
+    #     _save_figures(resultpath, self._resultfigures, fileformats=fileformats)
+
+    # def save_tables(self, resultpath, fileformats: list[str] = ["xlsx", "csv"]):
+    #     _save_tables(resultpath, self._resulttables, fileformats=fileformats)
 
     def save_figures(self, resultpath, fileformats: list[str] = ["svg", "html"]):
         _save_figures(resultpath, self._resultfigures, fileformats=fileformats)
