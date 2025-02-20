@@ -338,7 +338,7 @@ def parse_mappingfile(
     return mapping_df
 
 
-def read_inputfile(inputfile_path: str):
+def read_inputfile(inputfile_path: str) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame]:
 
     dtypes = { # define type dict to read the correct types from excel
         'Internal ID': str,
