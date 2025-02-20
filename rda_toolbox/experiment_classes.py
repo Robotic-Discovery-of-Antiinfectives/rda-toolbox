@@ -76,6 +76,7 @@ class Precipitation(Experiment):
         background_locations: pd.DataFrame | list[str],
         plate_type: int = 384,  # Define default plate_type for experiment
         measurement_label: str = "Raw Optical Density",
+        exclude_outlier: bool = False,
     ):
         super().__init__(rawfiles_folderpath, plate_type)
         self._measurement_label = measurement_label
@@ -100,6 +101,7 @@ class Precipitation(Experiment):
                     "Column": f"Col_{self._plate_type}",
                 }
             )
+        # elif type(background_locations) is dict:  # TODO: specify plate specific (w. barcode) background_locations using a dictionary
 
         self.rawdata_w_layout = pd.merge(
             self.rawdata, self.background_locations, how="outer"
@@ -115,9 +117,19 @@ class Precipitation(Experiment):
             (self.rawdata_w_layout[self._measurement_label] > self._background_median * 2)
         ]
         if not self._outlier.empty:
-            # TODO: add exclude_outlier=true|false flag to automatically exclude the detected outliers vis dataframe self._outlier df if enabled
-            print("Precipitation background outliers detected, consider excluding them from the background samples using `background_locations` = ['K24', ... etc.]:\n")
-            print(self._outlier)
+            if exclude_outlier:
+                for index, row in self._outlier.iterrows():
+                    print(
+                        f"Exluding outlier on plate {row['AcD Barcode 384']}, position {row['Row_384']}{row['Col_384']}"
+                    )
+                self.rawdata_w_layout.drop(self._outlier.index, inplace=True)
+            else:
+                print(
+                    "Precipitation background outliers detected,\n",
+                    "consider excluding them explicitly via the `background_locations` argument specification\n",
+                    "or setting the `exclude_outlier` argument flag to `True`",
+                    sep="",
+                )
         # print(self.get_results())
         # self.results = self.get_results()
 
@@ -212,7 +224,8 @@ class PrimaryScreen(Experiment):
         norm_by_barcode: str = "AcD Barcode 384",
         thresholds: list[float] = [50.0],
         precipitation_rawfilepath: str | None = None,
-        background_locations: pd.DataFrame | list[str] = [f"{row}24" for row in string.ascii_uppercase[:16]]
+        background_locations: pd.DataFrame | list[str] = [f"{row}24" for row in string.ascii_uppercase[:16]],
+        precip_exclude_outlier: bool = False,
     ):
         # TODO: inherit the save_* functions from Experiment superclass
         # TODO: move the save_plots and save_tables functions to .utility and just use them...
@@ -241,7 +254,11 @@ class PrimaryScreen(Experiment):
         self._norm_by_barcode = norm_by_barcode
         self.thresholds = thresholds
         self.precipitation = (
-            Precipitation(precipitation_rawfilepath, background_locations=background_locations)
+            Precipitation(
+                precipitation_rawfilepath,
+                background_locations=background_locations,
+                exclude_outlier=precip_exclude_outlier,
+            )
             if precipitation_rawfilepath
             else None
         )
@@ -510,7 +527,8 @@ class MIC(Experiment):  # Minimum Inhibitory Concentration
         norm_by_barcode: str = "AcD Barcode 384",
         thresholds: list[float] = [50.0],
         precipitation_rawfilepath: str | None = None,
-        background_locations: pd.DataFrame | list[str] = [f"{row}24" for row in string.ascii_uppercase[:16]]
+        background_locations: pd.DataFrame | list[str] = [f"{row}24" for row in string.ascii_uppercase[:16]],
+        precip_exclude_outlier: bool = False,
     ):
         super().__init__(rawfiles_folderpath, plate_type)
         self._inputfile_path = inputfile_path
@@ -518,7 +536,11 @@ class MIC(Experiment):  # Minimum Inhibitory Concentration
         self._ast_acd_mapping_filepath = ast_acd_mapping_filepath
         self._measurement_label = measurement_label
         self.precipitation = (
-            Precipitation(precipitation_rawfilepath, background_locations=background_locations)
+            Precipitation(
+                precipitation_rawfilepath,
+                background_locations=background_locations,
+                exclude_outlier=precip_exclude_outlier,
+            )
             if precipitation_rawfilepath
             else None
         )
