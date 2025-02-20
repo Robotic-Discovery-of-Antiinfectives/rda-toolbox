@@ -20,8 +20,9 @@ from .utility import (
     add_precipitation,
     _save_tables,
     _save_figures,
+    mic_assaytransfer_mapping,
 )
-from .parser import parse_readerfiles, read_inputfile, parse_mappingfile
+from .parser import parse_readerfiles, read_inputfile, parse_mappingfile, read_platemapping
 from .process import preprocess, get_thresholded_subset, mic_process_inputs
 from .plot import plateheatmaps, UpSetAltair, lineplots_facet
 
@@ -103,6 +104,20 @@ class Precipitation(Experiment):
         self.rawdata_w_layout = pd.merge(
             self.rawdata, self.background_locations, how="outer"
         ).fillna({"Layout": "Substance"})
+
+        # if self.rawdata_w_layout[]
+        self._background_median = self.rawdata_w_layout[
+            self.rawdata_w_layout["Layout"] == "Background"
+        ][self._measurement_label].median()
+        # Determine the outlier using 2*median of background samples
+        self._outlier = self.rawdata_w_layout[
+            (self.rawdata_w_layout["Layout"] == "Background") &
+            (self.rawdata_w_layout[self._measurement_label] > self._background_median * 2)
+        ]
+        if not self._outlier.empty:
+            # TODO: add exclude_outlier=true|false flag to automatically exclude the detected outliers vis dataframe self._outlier df if enabled
+            print("Precipitation background outliers detected, consider excluding them from the background samples using `background_locations` = ['K24', ... etc.]:\n")
+            print(self._outlier)
         # print(self.get_results())
         # self.results = self.get_results()
 
@@ -514,7 +529,6 @@ class MIC(Experiment):  # Minimum Inhibitory Concentration
                 self.rawdata, self.precipitation.results, self._mapping_dict
             )
         )
-        # self._mapping_dict = get_mapping_dict(self.mapped_input_df)
         self._substances_unmapped, self._organisms, self._dilutions, self._controls = (
             read_inputfile(inputfile_path)
         )
@@ -535,12 +549,20 @@ class MIC(Experiment):  # Minimum Inhibitory Concentration
     @property
     def _mapping_dict(self):
         mp_ast_mapping_dict = get_mapping_dict(
-            self.mapped_input_df,
+            parse_mappingfile(
+                self._mp_ast_mapping_filepath,
+                motherplate_column="MP Barcode 96",
+                childplate_column="AsT Barcode 384",
+            ),
             mother_column="MP Barcode 96",
             child_column="AsT Barcode 384",
         )
         ast_acd_mapping_dict = get_mapping_dict(
-            self.mapped_input_df,
+            parse_mappingfile(
+                self._ast_acd_mapping_filepath,
+                motherplate_column="AsT Barcode 384",
+                childplate_column="AcD Barcode 384",
+            ),
             mother_column="AsT Barcode 384",
             child_column="AcD Barcode 384",
         )
@@ -552,6 +574,7 @@ class MIC(Experiment):  # Minimum Inhibitory Concentration
             mapping_dict[mp_barcode] = tmp_dict
         return mapping_dict
 
+
     @cached_property
     def mapped_input_df(self):
         """
@@ -559,12 +582,91 @@ class MIC(Experiment):  # Minimum Inhibitory Concentration
         corresponding mappingfile(s).
         *Basically replaces rda.process.mic_process_inputs() function so all the variables and intermediate results are available via the class*
         """
-        return mic_process_inputs(
-            self._inputfile_path,
-            self._mp_ast_mapping_filepath,
-            self._ast_acd_mapping_filepath,
-            self._rawfiles_folderpath,
+
+
+        organisms = list(self._organisms["Organism"])
+
+        ast_platemapping, _ = read_platemapping(
+            self._mp_ast_mapping_filepath, self._substances_unmapped["MP Barcode 96"].unique()
         )
+        # Do some sanity checks:
+        necessary_columns = [
+            "Dataset",
+            "Internal ID",
+            "MP Barcode 96",
+            "MP Position 96",
+        ]
+        # Check if all necessary column are present in the input table:
+        if not all(column in self._substances_unmapped.columns for column in necessary_columns):
+            raise ValueError(
+                f"Not all necessary columns are present in the input table.\n(Necessary columns: {necessary_columns})"
+            )
+        # Check if all of the necessary column are complete:
+        if self._substances_unmapped[necessary_columns].isnull().values.any():
+            raise ValueError(
+                "Input table incomplete, contains NA (missing) values."
+            )
+        # Check if there are duplicates in the internal IDs (apart from references)
+        if any(self._substances_unmapped[self._substances_unmapped["Dataset"] != "Reference"]["Internal ID"].duplicated()):
+            raise ValueError("Duplicate Internal IDs.")
+
+        # Map AssayTransfer barcodes to the motherplate barcodes:
+        self._substances_unmapped["Row_384"], self._substances_unmapped["Col_384"], self._substances_unmapped["AsT Barcode 384"] = (
+            zip(
+                *self._substances_unmapped.apply(
+                    lambda row: mic_assaytransfer_mapping(
+                        row["MP Position 96"],
+                        row["MP Barcode 96"],
+                        ast_platemapping,
+                    ),
+                    axis=1,
+                )
+            )
+        )
+        acd_platemapping, replicates_dict = read_platemapping(
+                self._ast_acd_mapping_filepath, self._substances_unmapped["AsT Barcode 384"].unique()
+        )
+        num_replicates = list(set(replicates_dict.values()))[0]
+        single_subst_concentrations = []
+
+        for substance, subst_row in self._substances_unmapped.groupby("Internal ID"):
+            # Collect the concentrations each as rows for a single substance:
+            single_subst_conc_rows = []
+            init_pos = int(subst_row["Col_384"].iloc[0]) - 1
+            col_positions_384 = [list(range(1, 23, 2)), list(range(2, 23, 2))]
+            for col_i, conc in enumerate(list(self._dilutions["Concentration"].unique())):
+                # Add concentration:
+                subst_row["Concentration"] = conc
+                # Add corresponding column:
+                subst_row["Col_384"] = int(col_positions_384[init_pos][col_i])
+                single_subst_conc_rows.append(subst_row.copy())
+
+            # Concatenate all concentrations rows for a substance in a dataframe
+            single_subst_concentrations.append(pd.concat(single_subst_conc_rows))
+        # Concatenate all self._substances_unmapped dataframes to one whole
+        input_w_concentrations = pd.concat(single_subst_concentrations)
+
+        acd_dfs_list = []
+        for ast_barcode, ast_plate in input_w_concentrations.groupby("AsT Barcode 384"):
+            self._controls["AsT Barcode 384"] = list(ast_plate["AsT Barcode 384"].unique())[0]
+            ast_plate = pd.concat([ast_plate, self._controls])
+            for org_i, organism in enumerate(organisms):
+                for replicate in range(num_replicates):
+                    # Add the AcD barcode
+                    ast_plate["AcD Barcode 384"] = acd_platemapping[ast_barcode][
+                        replicate
+                    ][org_i]
+
+                    ast_plate["Replicate"] = replicate + 1
+                    # Add the scientific Organism name
+                    ast_plate["Organism"] = organism
+                    acd_dfs_list.append(ast_plate.copy())
+                    # Add concentrations:
+        acd_single_concentrations_df = pd.concat(acd_dfs_list)
+
+        # merge rawdata with input specifications
+        df = pd.merge(self.rawdata, acd_single_concentrations_df, how="outer")
+        return df
 
     @cached_property
     def processed(self):
