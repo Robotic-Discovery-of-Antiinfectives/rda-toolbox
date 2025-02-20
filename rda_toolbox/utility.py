@@ -422,15 +422,14 @@ def get_mapping_dict(
 
 
 def lowest_level_dict(mapping_dict):
+    # Check if the dict is already on the lowest level (dict of lists)
+    if type(list(mapping_dict.values())[0]) is list:
+        return mapping_dict
     lowest_mapping_dict = {}
     for d in mapping_dict.values():
         lowest_mapping_dict.update(d)
-    # check if the dict is already on the lowest level (dict of lists)
-    if type(list(lowest_mapping_dict.values())[0]) is list:
-        return lowest_mapping_dict
-    # else recursively reduce the dict
-    else:
-        return lowest_level_dict(lowest_mapping_dict)
+    # Else recursively reduce the dict
+    return lowest_level_dict(lowest_mapping_dict)
 
 
 def add_precipitation(rawdata, precipitation, mapping_dict):
