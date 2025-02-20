@@ -444,9 +444,7 @@ def add_precipitation(rawdata, precipitation, mapping_dict):
                     acd_precip["AcD Barcode 384"] = child_barcode
                     precip_all_acd_barcodes.append(acd_precip)
                 # print(acd_barcode, child_barcodes)
-    mapped_precipitation = pd.concat(precip_all_acd_barcodes).loc[
-        :, ["AcD Barcode 384", "Row_384", "Col_384", "Precipitated"]
-    ]
+    mapped_precipitation = pd.concat(precip_all_acd_barcodes).drop(columns=["Raw Optical Density", "Layout", "Limit of Quantification"])
     return pd.merge(rawdata, mapped_precipitation)
 
 
