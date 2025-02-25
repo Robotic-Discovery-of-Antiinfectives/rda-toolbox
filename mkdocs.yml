@@ -8,6 +8,7 @@ nav:
   - Overview: index.md
   - Input Specifications: input.md
   - Assay Evaluation:
+    - Precipitation: precipitation.md
     - Primary Screen: primary.md
     - MIC: mic.md
   - Reference:
