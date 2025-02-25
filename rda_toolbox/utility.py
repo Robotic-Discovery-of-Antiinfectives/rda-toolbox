@@ -433,6 +433,8 @@ def lowest_level_dict(mapping_dict):
 
 
 def add_precipitation(rawdata, precipitation, mapping_dict):
+    if precipitation.empty:
+        return rawdata
     precip_all_acd_barcodes = []
     mapping_dict = lowest_level_dict(mapping_dict)
     for acd_barcode, precip_grp in precipitation.groupby("AcD Barcode 384"):
@@ -445,6 +447,18 @@ def add_precipitation(rawdata, precipitation, mapping_dict):
                 # print(acd_barcode, child_barcodes)
     mapped_precipitation = pd.concat(precip_all_acd_barcodes).drop(columns=["Raw Optical Density", "Layout", "Limit of Quantification"])
     return pd.merge(rawdata, mapped_precipitation)
+
+
+def get_minimum_precipitation_conc(
+    grp: pd.DataFrame,
+    precip_conc_multiplicator
+) -> float | None:
+    grp = grp.sort_values("Concentration")
+    if grp["Precipitated"].any():
+        min_precip_conc = grp["Concentration"][grp["Precipitated"].idxmax()]
+        return min_precip_conc * precip_conc_multiplicator
+    else:
+        return None
 
 
 def _save_tables(

@@ -21,6 +21,7 @@ from .utility import (
     _save_tables,
     _save_figures,
     mic_assaytransfer_mapping,
+    get_minimum_precipitation_conc,
 )
 from .parser import parse_readerfiles, read_inputfile, parse_mappingfile, read_platemapping
 from .process import preprocess, get_thresholded_subset, mic_process_inputs
@@ -47,7 +48,7 @@ class Experiment:
         Save all plots and tables to resultdir
     """
 
-    def __init__(self, rawfiles_folderpath: str, plate_type: int):
+    def __init__(self, rawfiles_folderpath: str | None, plate_type: int):
         self._plate_type = plate_type
         self._rows, self._columns = get_rows_cols(plate_type)
         self._rawfiles_folderpath = rawfiles_folderpath
@@ -72,8 +73,8 @@ class Result:
 class Precipitation(Experiment):
     def __init__(
         self,
-        rawfiles_folderpath: str,
-        background_locations: pd.DataFrame | list[str],
+        rawfiles_folderpath: str | None,
+        background_locations: pd.DataFrame | list[str] | dict,
         plate_type: int = 384,  # Define default plate_type for experiment
         measurement_label: str = "Raw Optical Density",
         exclude_outlier: bool = False,
@@ -81,7 +82,6 @@ class Precipitation(Experiment):
         super().__init__(rawfiles_folderpath, plate_type)
         self._measurement_label = measurement_label
 
-        # TODO: Check for outlier and print warnings that they exist and will be (or should be) excluded
         if type(background_locations) is list:
             self.background_locations = pd.DataFrame(
                     list(map(position_to_rowcol, background_locations)),
@@ -101,11 +101,27 @@ class Precipitation(Experiment):
                     "Column": f"Col_{self._plate_type}",
                 }
             )
-        # elif type(background_locations) is dict:  # TODO: specify plate specific (w. barcode) background_locations using a dictionary
+        elif type(background_locations) is dict:  # TODO: specify plate specific (w. barcode) background_locations using a dictionary
+            # {"Barcode": "", "Position": }
+            pass
 
-        self.rawdata_w_layout = pd.merge(
-            self.rawdata, self.background_locations, how="outer"
-        ).fillna({"Layout": "Substance"})
+
+        if not self._rawfiles_folderpath:
+            # return early with placeholder results
+            self.rawdata_w_layout = pd.DataFrame({
+                'Row_384': [],
+                'Col_384': [],
+                'Raw Optical Density': [],
+                'AcD Barcode 384': [],
+                'Layout': [],
+                'Limit of Quantification': [],
+                'Precipitated': [],
+                f'Precipitated at {self._measurement_label}': []
+                })
+        else:
+            self.rawdata_w_layout = pd.merge(
+                self.rawdata, self.background_locations, how="outer"
+            ).fillna({"Layout": "Substance"})
 
         # if self.rawdata_w_layout[]
         self._background_median = self.rawdata_w_layout[
@@ -118,9 +134,11 @@ class Precipitation(Experiment):
         ]
         if not self._outlier.empty:
             if exclude_outlier:
+                # Print some info on exluded outliers:
+                print("For precipitation test:")
                 for index, row in self._outlier.iterrows():
                     print(
-                        f"Exluding outlier on plate {row['AcD Barcode 384']}, position {row['Row_384']}{row['Col_384']}"
+                        f"    Exluding outlier on plate {row['AcD Barcode 384']}, position {row['Row_384']}{row['Col_384']}"
                     )
                 self.rawdata_w_layout.drop(self._outlier.index, inplace=True)
             else:
@@ -150,6 +168,18 @@ class Precipitation(Experiment):
         self.rawdata_w_layout[f"Precipitated at {self._measurement_label}"] = self.rawdata_w_layout[
             self._measurement_label
         ].apply(lambda x: x if x > self.limit_of_quantification else None)
+        # if not self._rawfiles_folderpath:
+        #     # return early with placeholder results
+        #     return pd.DataFrame({
+        #         'Row_384': [],
+        #         'Col_384': [],
+        #         'Raw Optical Density': [],
+        #         'AcD Barcode 384': [],
+        #         'Layout': [],
+        #         'Limit of Quantification': [],
+        #         'Precipitated': [],
+        #         f'Precipitated at {self._measurement_label}': []
+        #         })
         return self.rawdata_w_layout
 
     # let it have its own heatmap function for now:
@@ -504,9 +534,15 @@ class PrimaryScreen(Experiment):
     def save_tables(self, resultpath, fileformats: list[str] = ["xlsx", "csv"]):
         _save_tables(resultpath, self._resulttables, fileformats=fileformats)
 
-    # def save(self, projectroot):
-    #     _save_figures()
-    #     _save_tables()
+    def save_results(
+        self,
+        tables_path: str,
+        figures_path: str,
+        figureformats: list[str] = ["svg", "html"],
+        tableformats: list[str] = ["xlsx", "csv"],
+    ):
+        self.save_figures(figures_path, fileformats=figureformats)
+        self.save_tables(tables_path, fileformats=tableformats)
 
 
 class MIC(Experiment):  # Minimum Inhibitory Concentration
@@ -527,8 +563,9 @@ class MIC(Experiment):  # Minimum Inhibitory Concentration
         norm_by_barcode: str = "AcD Barcode 384",
         thresholds: list[float] = [50.0],
         precipitation_rawfilepath: str | None = None,
-        background_locations: pd.DataFrame | list[str] = [f"{row}24" for row in string.ascii_uppercase[:16]],
+        precip_background_locations: pd.DataFrame | list[str] = [f"{row}24" for row in string.ascii_uppercase[:16]],
         precip_exclude_outlier: bool = False,
+        precip_conc_multiplicator: float = 2.0,
     ):
         super().__init__(rawfiles_folderpath, plate_type)
         self._inputfile_path = inputfile_path
@@ -538,16 +575,17 @@ class MIC(Experiment):  # Minimum Inhibitory Concentration
         self.precipitation = (
             Precipitation(
                 precipitation_rawfilepath,
-                background_locations=background_locations,
+                background_locations=precip_background_locations,
                 exclude_outlier=precip_exclude_outlier,
             )
-            if precipitation_rawfilepath
-            else None
+            # if precipitation_rawfilepath
+            # else None
         )
         self.rawdata = (  # Overwrite rawdata if precipitation data is available
-            self.rawdata
-            if self.precipitation is None
-            else add_precipitation(
+            # self.rawdata
+            # if self.precipitation is None
+            # else
+            add_precipitation(
                 self.rawdata, self.precipitation.results, self._mapping_dict
             )
         )
@@ -559,7 +597,7 @@ class MIC(Experiment):  # Minimum Inhibitory Concentration
         self._blanks = blanks
         self._norm_by_barcode = norm_by_barcode
         self.thresholds = thresholds
-        self._processed_only_substances = self.processed[
+        self._processed_only_substances = self.processed[ # Negative Control is still there!
             (self.processed["Dataset"] != "Reference")
             & (self.processed["Dataset"] != "Positive Control")
             & (self.processed["Dataset"] != "Blank")
@@ -567,6 +605,39 @@ class MIC(Experiment):  # Minimum Inhibitory Concentration
         self._references_results = self.processed.loc[
             self.processed["Dataset"] == "Reference"
         ]
+        self.substances_minimum_precipitation_conc = (
+            None
+            if self.precipitation.results.empty
+            else (
+                self._processed_only_substances[
+                    self._processed_only_substances["Dataset"] != "Negative Control"
+                ]
+                .drop_duplicates(
+                    ["Internal ID", "AsT Barcode 384", "Row_384", "Col_384"]
+                )
+                .loc[
+                    :,
+                    [
+                        "Internal ID",
+                        "AsT Barcode 384",
+                        "Row_384",
+                        "Col_384",
+                        "Concentration",
+                        "Precipitated",
+                    ],
+                ]
+                .reset_index(drop=True)
+                .groupby(["Internal ID", "AsT Barcode 384"])
+                .apply(
+                    lambda x: get_minimum_precipitation_conc(
+                        x, precip_conc_multiplicator=precip_conc_multiplicator
+                    ),
+                    include_groups=False,
+                )
+                .reset_index(name="Minimum Precipitation Conc.")
+                .drop(columns="AsT Barcode 384")
+            )
+        )
 
     @property
     def _mapping_dict(self):
@@ -668,10 +739,12 @@ class MIC(Experiment):  # Minimum Inhibitory Concentration
         # Concatenate all self._substances_unmapped dataframes to one whole
         input_w_concentrations = pd.concat(single_subst_concentrations)
 
+
         acd_dfs_list = []
         for ast_barcode, ast_plate in input_w_concentrations.groupby("AsT Barcode 384"):
             self._controls["AsT Barcode 384"] = list(ast_plate["AsT Barcode 384"].unique())[0]
-            ast_plate = pd.concat([ast_plate, self._controls])
+
+            ast_plate = pd.concat([ast_plate, self._controls.copy()])
             for org_i, organism in enumerate(organisms):
                 for replicate in range(num_replicates):
                     # Add the AcD barcode
@@ -717,7 +790,7 @@ class MIC(Experiment):  # Minimum Inhibitory Concentration
     #    return lineplots_facet(self.processed)
 
     @cached_property
-    def _resultfigures(self):
+    def _resultfigures(self) -> list[Result]:
         result_figures = []
         result_figures.append(
             Result("QualityControl", "plateheatmaps", figure=self.plateheatmap)
@@ -750,7 +823,7 @@ class MIC(Experiment):  # Minimum Inhibitory Concentration
             result_figures.append(
                 Result(
                     dataset,
-                    f"lineplots_facet_{dataset}",
+                    f"{dataset}_lineplots_facet",
                     figure=lineplots_facet(
                         pd.concat([dataset_data, corresponding_dataset_references])
                     ),
@@ -772,98 +845,157 @@ class MIC(Experiment):  # Minimum Inhibitory Concentration
                 result_figures.append(
                     Result(
                         dataset,
-                        f"UpSetPlot_{dataset}",
+                        f"{dataset}_UpSetPlot",
                         figure=UpSetAltair(dummy_df, title=dataset),
                     )
                 )
         return result_figures
-        pass
 
     @cached_property
-    def _resulttables(self):
+    def _resulttables(self) -> list[Result]:
         """
-        Retrieves result tables and returns them like list[Resulttable]
+        Retrieves result tables and returns them like list[Result]
         where Resulttable is a dataclass collecting meta information about the plot.
         """
         result_tables = []
         df = self.processed.copy()
 
-        df = df[
-            (df["Dataset"] != "Negative Control") & (df["Dataset"] != "Blank")
-        ].dropna(subset=["Concentration"])
+        def get_mic_df(df):
+            df = df[
+                (df["Dataset"] != "Negative Control") & (df["Dataset"] != "Blank")
+            ].dropna(subset=["Concentration"])
 
-        pivot_df = pd.pivot_table(
-            df,
-            values=["Relative Optical Density", "Replicate", "Z-Factor"],
-            index=[
-                "Internal ID",
-                "External ID",
-                "Organism",
-                "Concentration",
-                "Dataset",
-            ],
-            aggfunc={
-                "Relative Optical Density": ["mean"],
-                "Replicate": ["count"],
-                "Z-Factor": [
-                    "mean",
-                    "std",
-                ],  # does this make sense? with std its usable.
-                # "Z-Factor": ["std"],
-            },
-        ).reset_index()
-
-        pivot_df.columns = [" ".join(x).strip() for x in pivot_df.columns.ravel()]
-
-        mic_records = []
-        for group_names, grp in pivot_df.groupby(
-            ["Internal ID", "External ID", "Organism", "Dataset"]
-        ):
-            internal_id, external_id, organism, dataset = group_names
-            # Sort by concentration just to be sure:
-            grp = grp[
-                [
+            pivot_df = pd.pivot_table(
+                df,
+                values=["Relative Optical Density", "Replicate", "Z-Factor"],
+                index=[
+                    "Internal ID",
+                    "External ID",
+                    "Organism",
                     "Concentration",
-                    "Relative Optical Density mean",
-                    "Z-Factor mean",
-                    "Z-Factor std",
-                ]
-            ].sort_values(by=["Concentration"])
-            # print(grp)
-            # Get rows where the OD is below the given threshold:
-            record = {
-                "Internal ID": internal_id,
-                "External ID": external_id,
-                "Organism": organism,
-                "Dataset": dataset,
-                "Z-Factor mean": list(grp["Z-Factor mean"])[0],
-                "Z-Factor std": list(grp["Z-Factor std"])[0],
-            }
+                    "Dataset",
+                ],
+                aggfunc={
+                    "Relative Optical Density": ["mean"],
+                    "Replicate": ["count"],
+                    "Z-Factor": [
+                        "mean",
+                        "std",
+                    ],  # does this make sense? with std its usable.
+                    # "Z-Factor": ["std"],
+                },
+            ).reset_index()
 
-            for threshold in self.thresholds:
-                values_below_threshold = grp[
-                    grp["Relative Optical Density mean"] < threshold
-                ]
-                # thx to jonathan - check if the OD at maximum concentration is below threshold (instead of any concentration)
-                max_conc_below_threshold = list(
-                    grp[grp["Concentration"] == max(grp["Concentration"])][
-                        "Relative Optical Density mean"
+            pivot_df.columns = [" ".join(x).strip() for x in pivot_df.columns.ravel()]
+
+            mic_records = []
+            for group_names, grp in pivot_df.groupby(
+                ["Internal ID", "External ID", "Organism", "Dataset"]
+            ):
+                internal_id, external_id, organism, dataset = group_names
+                # Sort by concentration just to be sure:
+                grp = grp[
+                    [
+                        "Concentration",
+                        "Relative Optical Density mean",
+                        "Z-Factor mean",
+                        "Z-Factor std",
                     ]
-                    < threshold
-                )[0]
-                if not max_conc_below_threshold:
-                    mic = None
-                else:
-                    mic = values_below_threshold.iloc[0]["Concentration"]
-                record[f"MIC{threshold} in µM"] = mic
-            mic_records.append(record)
-        # Drop entries where no MIC could be determined
-        mic_df = pd.DataFrame.from_records(mic_records)
+                ].sort_values(by=["Concentration"])
+
+                # Get rows where the OD is below the given threshold:
+                record = {
+                    "Internal ID": internal_id,
+                    "External ID": external_id,
+                    "Organism": organism,
+                    "Dataset": dataset,
+                    "Z-Factor mean": list(grp["Z-Factor mean"])[0],
+                    "Z-Factor std": list(grp["Z-Factor std"])[0],
+                }
+
+                for threshold in self.thresholds:
+                    values_below_threshold = grp[
+                        grp["Relative Optical Density mean"] < threshold
+                    ]
+                    # thx to jonathan - check if the OD at maximum concentration is below threshold (instead of any concentration)
+                    max_conc_below_threshold = list(
+                        grp[grp["Concentration"] == max(grp["Concentration"])][
+                            "Relative Optical Density mean"
+                        ]
+                        < threshold
+                    )[0]
+                    if not max_conc_below_threshold:
+                        mic = None
+                    else:
+                        mic = values_below_threshold.iloc[0]["Concentration"]
+                    record[f"MIC{threshold} in µM"] = mic
+                mic_records.append(record)
+            # Drop entries where no MIC could be determined
+            mic_df = pd.DataFrame.from_records(mic_records)
+            return mic_df
+
+        def get_ref_mics(df):
+            only_references = df[
+                    df["Dataset"] == "Reference"
+                    ]
+            mic_records = []
+            for group_names, grp in only_references.groupby(
+                [
+                    "Internal ID",
+                    "External ID",
+                    "Organism",
+                    "Dataset",
+                    "AcD Barcode 384",
+                ]
+            ):
+                internal_id, external_id, organism, dataset, acd_barcode = group_names
+                grp = grp.copy().sort_values(by=["Concentration"])
+                record = {
+                    "Internal ID": internal_id,
+                    "External ID": external_id,
+                    "Organism": organism,
+                    "Dataset": dataset,
+                    "AcD Barcode 384": acd_barcode,
+                    "Z-Factor": list(grp["Z-Factor"])[0],
+                }
+                for threshold in self.thresholds:
+                    values_below_threshold = grp[
+                        grp["Relative Optical Density"] < threshold
+                    ]
+                    # thx to jonathan - check if the OD at maximum concentration is below threshold (instead of any concentration)
+                    max_conc_below_threshold = list(
+                        grp[grp["Concentration"] == max(grp["Concentration"])][
+                            "Relative Optical Density"
+                        ]
+                        < threshold
+                    )[0]
+                    if not max_conc_below_threshold:
+                        mic = None
+                    else:
+                        mic = values_below_threshold.iloc[0]["Concentration"]
+                    record[f"MIC{threshold} in µM"] = mic
+                mic_records.append(record)
+            reference_mics = pd.DataFrame.from_records(mic_records)
+            return reference_mics
+
+        mic_df = get_mic_df(df)
+        references_mic_results = get_ref_mics(df)
+
+        result_tables.append(Result(
+            "Reference",
+            "References_MIC_results_eachRefID",
+            table=references_mic_results,
+        ))
+
+        # If precipitation has been done, merge MPC results on long mic_df
+        if not self.precipitation.results.empty:
+            mic_df = pd.merge(mic_df, self.substances_minimum_precipitation_conc)
+
         result_tables.append(
             Result("All", "MIC_Results_AllDatasets_longformat", table=mic_df)
         )
-        # mic_df.round(2).to_excel(os.path.join(filepath, "MIC_Results_AllDatasets_longformat.xlsx"), index=False)
-        for dataset, dataset_grp in mic_df.groupby(["Dataset"]):
+
+        for dataset, dataset_grp in mic_df.groupby("Dataset"):
             pivot_multiindex_df = pd.pivot_table(
                 dataset_grp,
                 values=[f"MIC{threshold} in µM" for threshold in self.thresholds]
@@ -871,15 +1003,9 @@ class MIC(Experiment):  # Minimum Inhibitory Concentration
                 index=["Internal ID", "External ID", "Dataset"],
                 columns="Organism",
             ).reset_index()
+            # self.pivot_multiindex_df = pivot_multiindex_df
+            # print(pivot_multiindex_df)
 
-            # resultpath = os.path.join(filepath, dataset[0])
-
-            # References special case
-            # if dataset[0] == "Reference":
-            #     references_mic_results(df, resultpath, thresholds=thresholds)
-            #     continue # skip for references
-
-            # pathlib.Path(resultpath).mkdir(parents=True, exist_ok=True)
             for threshold in self.thresholds:
                 organisms_thresholded_mics = pivot_multiindex_df[
                     ["Internal ID", "External ID", f"MIC{threshold} in µM"]
@@ -892,20 +1018,24 @@ class MIC(Experiment):  # Minimum Inhibitory Concentration
                     by=list(organisms_thresholded_mics.columns)[2:],
                     na_position="last",
                 )
-                # organisms_thresholded_mics.dropna(
-                #     subset=list(organisms_thresholded_mics.columns)[2:],
-                #     how="all",
-                #     inplace=True,
-                # )
-                organisms_thresholded_mics.fillna("NA", inplace=True)
-                organisms_thresholded_mics.to_excel(
-                    os.path.join(
-                        resultpath, f"{dataset[0]}_MIC{threshold}_results.xlsx"
-                    ),
-                    index=False,
+
+                # Fill with nan if not available
+                organisms_thresholded_mics = organisms_thresholded_mics.astype(str)
+                # organisms_thresholded_mics.fillna("NA", inplace=True)
+
+                if not self.precipitation.results.empty:
+                    organisms_thresholded_mics = pd.merge(
+                        organisms_thresholded_mics, self.substances_minimum_precipitation_conc
+                    )
+                result_tables.append(
+                    Result(
+                        dataset,
+                        f"{dataset}_MIC{round(threshold)}_results",
+                        table=organisms_thresholded_mics,
+                    )
                 )
 
-        return []
+        return result_tables
 
     @cached_property
     def results(self):
@@ -916,27 +1046,18 @@ class MIC(Experiment):  # Minimum Inhibitory Concentration
         """
         return {tbl.file_basename: tbl.table for tbl in self._resulttables}
 
-    # def save_figures(self, resultpath, fileformats: list[str] = ["svg", "html"]):
-    #     _save_figures(resultpath, self._resultfigures, fileformats=fileformats)
-
-    # def save_tables(self, resultpath, fileformats: list[str] = ["xlsx", "csv"]):
-    #     _save_tables(resultpath, self._resulttables, fileformats=fileformats)
-
     def save_figures(self, resultpath, fileformats: list[str] = ["svg", "html"]):
         _save_figures(resultpath, self._resultfigures, fileformats=fileformats)
 
     def save_tables(self, resultpath, fileformats: list[str] = ["xlsx", "csv"]):
         _save_tables(resultpath, self._resulttables, fileformats=fileformats)
-        # self.rawdata = (  # Overwrite rawdata if precipitation data is available
-        #     self.rawdata
-        #     if self.precipitation is None
-        #     else add_precipitation(
-        #         self.rawdata, self.precipitation.results, self._mapping_dict
-        #     )
-        # )
-        # self._inputfile_path = inputfile_path
-        # self._mp_to_ast_mappingfile_path = mp_ast_mapping_file
-        # self._ast_to_acd_mappingfile_path = ast_acd_mapping_file
-        # self._substances_unmapped, self._organisms, self._dilutions, self._controls = (
-        #     read_inputfile(inputfile_path)
-        # )
+
+    def save_results(
+        self,
+        tables_path: str,
+        figures_path: str,
+        figureformats: list[str] = ["svg", "html"],
+        tableformats: list[str] = ["xlsx", "csv"],
+    ):
+        self.save_figures(figures_path, fileformats=figureformats)
+        self.save_tables(tables_path, fileformats=tableformats)
