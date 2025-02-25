@@ -257,8 +257,6 @@ class PrimaryScreen(Experiment):
         background_locations: pd.DataFrame | list[str] = [f"{row}24" for row in string.ascii_uppercase[:16]],
         precip_exclude_outlier: bool = False,
     ):
-        # TODO: inherit the save_* functions from Experiment superclass
-        # TODO: move the save_plots and save_tables functions to .utility and just use them...
         super().__init__(rawfiles_folderpath, plate_type)
         self._measurement_label = measurement_label
         self._mappingfile_path = mappingfile_path
@@ -289,13 +287,14 @@ class PrimaryScreen(Experiment):
                 background_locations=background_locations,
                 exclude_outlier=precip_exclude_outlier,
             )
-            if precipitation_rawfilepath
-            else None
+            # if precipitation_rawfilepath
+            # else None
         )
         self.rawdata = (  # Overwrite rawdata if precipitation data is available
-            self.rawdata
-            if self.precipitation is None
-            else add_precipitation(
+            # self.rawdata
+            # if self.precipitation is None
+            # else
+            add_precipitation(
                 self.rawdata, self.precipitation.results, self._mapping_dict
             )
         )
@@ -304,10 +303,31 @@ class PrimaryScreen(Experiment):
             & (self.processed["Dataset"] != "Positive Control")
             & (self.processed["Dataset"] != "Blank")
         ]
-        #     Precipitation(precipitation_rawfilepath)
-        #     if precipitation_rawfilepath
-        #     else None
-        # )
+        self.substances_precipitation = (
+            None
+            if self.precipitation.results.empty
+            else (
+                self._processed_only_substances[
+                    self._processed_only_substances["Dataset"] != "Negative Control"
+                ]
+                .drop_duplicates(
+                    ["Internal ID", "AsT Barcode 384", "Row_384", "Col_384"]
+                )
+                .loc[
+                    :,
+                    [
+                        "Internal ID",
+                        # "AsT Barcode 384",
+                        # "Row_384",
+                        # "Col_384",
+                        "Concentration",
+                        "Precipitated",
+                        f"Precipitated at {measurement_label}"
+                    ],
+                ]
+                .reset_index(drop=True)
+            )
+        )
 
     def check_substances(self):
         """
@@ -471,6 +491,8 @@ class PrimaryScreen(Experiment):
                 # dataset = dataset[0]
                 # resultpath = os.path.join(filepath, dataset)
                 # result_tables[f"{dataset}_all_results"] = dataset_grp
+                if not self.precipitation.results.empty:
+                    dataset_grp = pd.merge(dataset_grp, self.substances_precipitation)
                 result_tables.append(
                     Result(dataset, f"{dataset}_all_results", table=dataset_grp)
                 )
@@ -509,7 +531,9 @@ class PrimaryScreen(Experiment):
                 results_sorted_by_mean_activity = thresholded_pivot.iloc[
                     thresholded_pivot.iloc[:, 3:].mean(axis=1).argsort()
                 ]
-                # result_tables[f"{dataset}_threshold{round(threshold)}_results"] = results_sorted_by_mean_activity
+
+                if not self.precipitation.results.empty:
+                    results_sorted_by_mean_activity = pd.merge(results_sorted_by_mean_activity, self.substances_precipitation)
                 result_tables.append(
                     Result(
                         dataset,
@@ -605,7 +629,7 @@ class MIC(Experiment):  # Minimum Inhibitory Concentration
         self._references_results = self.processed.loc[
             self.processed["Dataset"] == "Reference"
         ]
-        self.substances_minimum_precipitation_conc = (
+        self.substances_precipitation = (
             None
             if self.precipitation.results.empty
             else (
@@ -627,6 +651,13 @@ class MIC(Experiment):  # Minimum Inhibitory Concentration
                     ],
                 ]
                 .reset_index(drop=True)
+            )
+        )
+        self.substances_minimum_precipitation_conc = ( # minimum precipitation conc = MPC
+            None
+            if (self.precipitation.results.empty) and (self.substances_precipitation)
+            else (
+                self.substances_precipitation
                 .groupby(["Internal ID", "AsT Barcode 384"])
                 .apply(
                     lambda x: get_minimum_precipitation_conc(
