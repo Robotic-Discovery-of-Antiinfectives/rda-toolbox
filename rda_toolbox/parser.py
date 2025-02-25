@@ -195,12 +195,14 @@ def collect_results(filedicts: list[dict]) -> pd.DataFrame:
     return allresults_df.reset_index(drop=True)
 
 
-def parse_readerfiles(path: str) -> pd.DataFrame:
+def parse_readerfiles(path: str | None) -> pd.DataFrame | None:
     """
     Reads CytationC10 readerfiles (plain text files) and merges the results into a DataFrame which is returned.
     Wrapper for readerfiles_rawdf to keep backwards compatibility.
     Improves readerfiles_rawdf, provide a single path for convenience.
     """
+    if not path:
+        return None
     paths = [
             os.path.join(path, f)
             for f in os.listdir(path)
