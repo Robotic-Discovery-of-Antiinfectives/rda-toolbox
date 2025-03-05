@@ -284,7 +284,7 @@ def prepare_visualization(df, by_id="Internal ID", whisker_width=1):
     Does formatting for the facet lineplots.
     """
     df = df.copy()
-    df = df[df["Z-Factor"] > 0]
+    # df = df[df["Z-Factor"] > 0]
     df.loc[:, "Used Replicates"] = df.groupby([by_id, "Concentration", "Organism"])[
         ["Replicate"]
     ].transform("count")
