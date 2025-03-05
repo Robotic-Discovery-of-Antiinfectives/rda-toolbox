@@ -586,6 +586,7 @@ class MIC(Experiment):  # Minimum Inhibitory Concentration
         blanks: str = "Medium",
         norm_by_barcode: str = "AcD Barcode 384",
         thresholds: list[float] = [50.0],
+        exclude_negative_zfactors: bool = True,
         precipitation_rawfilepath: str | None = None,
         precip_background_locations: pd.DataFrame | list[str] = [f"{row}24" for row in string.ascii_uppercase[:16]],
         precip_exclude_outlier: bool = False,
@@ -669,6 +670,7 @@ class MIC(Experiment):  # Minimum Inhibitory Concentration
                 .drop(columns="AsT Barcode 384")
             )
         )
+        self._exclude_negative_zfactor = exclude_negative_zfactors
 
     @property
     def _mapping_dict(self):
@@ -836,6 +838,14 @@ class MIC(Experiment):  # Minimum Inhibitory Concentration
             )
 
         # Save plots per dataset:
+
+        processed_negative_zfactor = self._processed_only_substances[self._processed_only_substances["Z-Factor"] < 0]
+        if not processed_negative_zfactor.empty and self._exclude_negative_zfactor == True:
+            print(
+            f"{len(processed_negative_zfactor["AsT Barcode 384"].unique())} plate(s) with negative Z-Factor detected for organisms '{", ".join(processed_negative_zfactor["Organism"].unique())}'.\n",
+                "These plates will be excluded from the lineplots visualization!\n (If you want to include them, use the `exclude_negative_zfactors=False` flag of the MIC class)"
+            )
+
         for dataset, dataset_data in self._processed_only_substances.groupby("Dataset"):
             # Look for and add the corresponding references for each dataset:
             if "AcD Barcode 384" in dataset_data:
@@ -856,7 +866,8 @@ class MIC(Experiment):  # Minimum Inhibitory Concentration
                     dataset,
                     f"{dataset}_lineplots_facet",
                     figure=lineplots_facet(
-                        pd.concat([dataset_data, corresponding_dataset_references])
+                        pd.concat([dataset_data, corresponding_dataset_references]),
+                        exclude_negative_zfactors=self._exclude_negative_zfactor
                     ),
                 )
             )

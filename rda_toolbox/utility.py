@@ -279,12 +279,13 @@ def smiles_to_imgstr(smiles):
     return imgbuffer_to_imgstr(mol_to_bytes(Chem.MolFromSmiles(smiles)))
 
 
-def prepare_visualization(df, by_id="Internal ID", whisker_width=1):
+def prepare_visualization(df, by_id="Internal ID", whisker_width=1, exclude_negative_zfactors=True):
     """
     Does formatting for the facet lineplots.
     """
     df = df.copy()
-    # df = df[df["Z-Factor"] > 0]
+    if exclude_negative_zfactors:
+        df = df[df["Z-Factor"] > 0]
     df.loc[:, "Used Replicates"] = df.groupby([by_id, "Concentration", "Organism"])[
         ["Replicate"]
     ].transform("count")
