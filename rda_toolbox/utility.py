@@ -283,24 +283,25 @@ def prepare_visualization(df, by_id="Internal ID", whisker_width=1):
     """
     Does formatting for the facet lineplots.
     """
+    df = df.copy()
     df = df[df["Z-Factor"] > 0]
-    df["Used Replicates"] = df.groupby([by_id, "Concentration", "Organism"])[
+    df.loc[:, "Used Replicates"] = df.groupby([by_id, "Concentration", "Organism"])[
         ["Replicate"]
     ].transform("count")
-    df["Mean Relative Optical Density"] = (
+    df.loc[:, "Mean Relative Optical Density"] = (
         df.groupby([by_id, "Concentration", "Organism"])[["Relative Optical Density"]]
         .transform("mean")
         .round(2)
     )
-    df["Std. Relative Optical Density"] = (
+    df.loc[:, "Std. Relative Optical Density"] = (
         df.groupby([by_id, "Concentration", "Organism"])[["Relative Optical Density"]]
         .transform("std")
         .round(2)
     )
-    df["uerror"] = (
+    df.loc[:, "uerror"] = (
         df["Mean Relative Optical Density"] + df["Std. Relative Optical Density"]
     )
-    df["lerror"] = (
+    df.loc[:, "lerror"] = (
         df["Mean Relative Optical Density"] - df["Std. Relative Optical Density"]
     )
 
