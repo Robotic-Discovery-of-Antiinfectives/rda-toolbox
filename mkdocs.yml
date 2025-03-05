@@ -7,6 +7,7 @@ theme:
 nav:
   - Overview: index.md
   - Input Specifications: input.md
+  - Setting Up An Experiment: setup_marimo.md
   - Assay Evaluation:
     - Precipitation: precipitation.md
     - Primary Screen: primary.md
