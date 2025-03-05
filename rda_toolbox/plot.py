@@ -339,7 +339,8 @@ def UpSetAltair(
         )
         .transform_filter(
             # count, set1, set2, ..., degree
-            alt.datum["degree"] != 0
+            alt.datum["degree"]
+            != 0
         )
         .transform_window(
             # count, set1, set2, ..., degree
@@ -554,7 +555,11 @@ def UpSet_per_dataset(
 
 
 def lineplots_facet(
-    df, hline_y=50, by_id="Internal ID", whisker_width=10
+    df,
+    hline_y=50,
+    by_id="Internal ID",
+    whisker_width=10,
+    exclude_negative_zfactors=True,
 ) -> alt.vegalite.v5.api.HConcatChart:
     """
     Assay: MIC
@@ -565,7 +570,9 @@ def lineplots_facet(
     df = df.dropna(subset=["Concentration"]).loc[
         (df["Dataset"] != "Negative Control") & (df["Dataset"] != "Blank"), :
     ]
-    df = prepare_visualization(df, by_id=by_id)
+    df = prepare_visualization(
+        df, by_id=by_id, exclude_negative_zfactors=exclude_negative_zfactors
+    )
     hline_y = 50
     organism_columns = []
 
