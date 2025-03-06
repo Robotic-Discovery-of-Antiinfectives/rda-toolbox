@@ -13,6 +13,9 @@ import math
 import pathlib
 import os
 
+from io import BytesIO
+import xlsxwriter
+
 
 def get_rows_cols(platetype: int) -> tuple[int, int]:
     """
@@ -493,3 +496,32 @@ def _save_figures(
             result.figure.save(
                 os.path.join(filedir, f"{result.file_basename}.{file_format}"),
             )
+
+
+def to_excel_molimages(
+    df: pd.DataFrame, filename: str, desired_columns: list[str], mol_col: str = "mol"
+):
+    """
+    Writes a dataframe containing RDKit molecule objects to an excel file containing the molecular structures as PNG images.
+    Needs a column in df with RDKit mol object (e.g. rdkit.Chem.MolFromInchi, MolFromMolBlock, MolFromSmiles etc.)
+    """
+    writer = pd.ExcelWriter(filename, engine="xlsxwriter")
+    workbook = writer.book
+    # workbook = xlsxwriter.Workbook("images_bytesio.xlsx")
+    worksheet = workbook.add_worksheet()
+    df["PIL_img"] = df[mol_col].map(Draw.MolToImage)
+
+    def get_imgbuffer(image):
+        stream = BytesIO()
+        image.save(stream, format="PNG")
+        return stream
+
+    for i, imgbuf in enumerate(df["PIL_img"].map(get_imgbuffer), start=1):
+        worksheet.set_column(0, 0, 20)
+        worksheet.set_row(i, 120)
+        worksheet.insert_image(
+            f"A{i+1}", "img.png", {"image_data": imgbuf, "x_scale": 0.5, "y_scale": 0.5}
+        )
+
+    df.loc[:, desired_columns].to_excel(writer, startcol=1, index=False)
+    workbook.close()
