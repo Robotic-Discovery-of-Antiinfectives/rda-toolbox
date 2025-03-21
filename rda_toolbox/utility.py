@@ -245,12 +245,20 @@ def mic_assaytransfer_mapping(position, orig_barcode, ast_platemapping):
     # try A5 except IndexError: A5 - 4 -> try A1 success etc.
     # or A12 -> ast_of_3 = 2 -> IndexError. A12 - 4 -> A8 -> IndexError. A8 - 4 -> A4 works...
     # seems like a bad solution though.
+    # num_of_ast_plates = len(ast_platemapping[orig_barcode][0])
+    # if num_of_ast_plates < 3:
+    #     print("Did someone just take one third of a motherplate (Only one or two AsT plates for one MP)?")
+
     if col in [1, 2, 3, 4]:
         ast_of_3 = 0
     elif col in [5, 6, 7, 8]:
         ast_of_3 = 1
     else:
         ast_of_3 = 2
+    # print("orig_barcode", orig_barcode, "ast_of_3", ast_of_3)
+    # print("ast_platemapping", ast_platemapping)
+    # print("col", col)
+    # print(ast_platemapping[orig_barcode][0])
     barcode_384_ast = ast_platemapping[orig_barcode][0][ast_of_3]
     return str(row_384), str(col_384), barcode_384_ast
 
@@ -312,6 +320,7 @@ def prepare_visualization(df, by_id="Internal ID", whisker_width=1, exclude_nega
     tmp_list = []
     for _, grp in df.groupby([by_id, "Organism"]):
         # use replicate == 1 as the meaned OD is the same in all 3 replicates anyways
+        # print(grp)
         maxconc_below_threshold = (
             grp[(grp["Replicate"] == 1) & (grp["Concentration"] == 50)][
                 "Mean Relative Optical Density"
@@ -324,6 +333,7 @@ def prepare_visualization(df, by_id="Internal ID", whisker_width=1, exclude_nega
         # .sort_values(by=["Concentration"], ascending=False)
         # grp_sorted[grp_sorted["Concentration"] == 50]["Mean Relative Optical Density"]
         # print(grp.aggregate())
+    # print(tmp_list)
     df = pd.concat(tmp_list)
     # print(df)
     # df["highest_conc_bigger_50"] = df.groupby([by_id, "Organism"])[
@@ -451,7 +461,7 @@ def add_precipitation(rawdata, precipitation, mapping_dict):
                     precip_all_acd_barcodes.append(acd_precip)
                 # print(acd_barcode, child_barcodes)
     mapped_precipitation = pd.concat(precip_all_acd_barcodes).drop(columns=["Raw Optical Density", "Layout", "Limit of Quantification"])
-    return pd.merge(rawdata, mapped_precipitation)
+    return pd.merge(rawdata, mapped_precipitation, how="outer")
 
 
 def get_minimum_precipitation_conc(
