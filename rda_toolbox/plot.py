@@ -551,7 +551,7 @@ def UpSet_per_dataset(
         for save_format in save_formats:
             filename = f"../figures/{dataset}/UpSetPlot_{dataset}.{save_format}"
             print("Saving", filename)
-            dataset_upsetplot = rda.UpSetAltair(dummy_df, title=dataset).save(filename)
+            dataset_upsetplot = UpSetAltair(dummy_df, title=dataset).save(filename)
 
 
 def lineplots_facet(
