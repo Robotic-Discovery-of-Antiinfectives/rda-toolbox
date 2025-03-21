@@ -586,7 +586,7 @@ class MIC(Experiment):  # Minimum Inhibitory Concentration
         blanks: str = "Medium",
         norm_by_barcode: str = "AcD Barcode 384",
         thresholds: list[float] = [50.0],
-        exclude_negative_zfactors: bool = True,
+        exclude_negative_zfactors: bool = False,
         precipitation_rawfilepath: str | None = None,
         precip_background_locations: pd.DataFrame | list[str] = [f"{row}24" for row in string.ascii_uppercase[:16]],
         precip_exclude_outlier: bool = False,
@@ -709,8 +709,8 @@ class MIC(Experiment):  # Minimum Inhibitory Concentration
         *Basically replaces rda.process.mic_process_inputs() function so all the variables and intermediate results are available via the class*
         """
 
-
-        organisms = list(self._organisms["Organism"])
+        # Sorting of organisms via Rack is **very** important, otherwise data gets attributed to wrong organisms
+        organisms = list(self._organisms.sort_values(by="Rack")["Organism"])
 
         ast_platemapping, _ = read_platemapping(
             self._mp_ast_mapping_filepath, self._substances_unmapped["MP Barcode 96"].unique()
@@ -1049,6 +1049,10 @@ class MIC(Experiment):  # Minimum Inhibitory Concentration
             # print(pivot_multiindex_df)
 
             for threshold in self.thresholds:
+                # print(pivot_multiindex_df.columns)
+                # print(pivot_multiindex_df)
+                if pivot_multiindex_df.empty:
+                    continue
                 organisms_thresholded_mics = pivot_multiindex_df[
                     ["Internal ID", "External ID", f"MIC{threshold} in µM"]
                 ]
