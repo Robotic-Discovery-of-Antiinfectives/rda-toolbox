@@ -422,7 +422,7 @@ class PrimaryScreen(Experiment):
             Result("QualityControl", "plateheatmaps", figure=self.plateheatmap)
         )
         # If precipitation testing was done, add it to QC result figures:
-        if self.precipitation:
+        if not self.precipitation.results.empty:
             result_figures.append(
                 Result(
                     "QualityControl",
