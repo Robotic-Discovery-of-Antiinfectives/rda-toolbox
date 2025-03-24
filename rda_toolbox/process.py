@@ -121,6 +121,17 @@ def preprocess(
     )
 
     df[substance_id] = df[substance_id].astype(str)
+
+    # detect and report NA values (defined in input, not in raw data)
+    orgs_w_missing_data = df[df[f"Raw {measurement}"].isna()].Organism.unique()
+    if orgs_w_missing_data.size > 0:
+        print(f"""Processed data:
+      Organisms with missing data, excluded from processed data: {orgs_w_missing_data}.
+      If this is not intended, please check the Input.xlsx or if raw data files are complete.
+              """)
+        df = df.dropna(subset=[f"Raw {measurement}"])
+    # Report missing
+    # Remove missing from "processed" dataframe
     return df.round(
         {
             "Denoised Optical Density": 2,
