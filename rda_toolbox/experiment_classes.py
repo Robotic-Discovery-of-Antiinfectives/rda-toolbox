@@ -25,7 +25,7 @@ from .utility import (
 )
 from .parser import parse_readerfiles, read_inputfile, parse_mappingfile, read_platemapping
 from .process import preprocess, get_thresholded_subset, mic_process_inputs
-from .plot import plateheatmaps, UpSetAltair, lineplots_facet
+from .plot import plateheatmaps, UpSetAltair, lineplots_facet, potency_distribution
 
 
 class Experiment:
@@ -671,6 +671,7 @@ class MIC(Experiment):  # Minimum Inhibitory Concentration
             )
         )
         self._exclude_negative_zfactor = exclude_negative_zfactors
+        self.mic_df = self.get_mic_df(self.processed.copy())
 
     @property
     def _mapping_dict(self):
@@ -874,15 +875,12 @@ class MIC(Experiment):  # Minimum Inhibitory Concentration
 
         # Save plots per threshold:
         for threshold in self.thresholds:
-            subset = get_thresholded_subset(
-                self._processed_only_substances,
-                id_column=self._substance_id,
-                negative_controls=self._negative_controls,
-                blanks=self._blanks,
-                threshold=threshold,
-            )
-            for dataset, sub_df in subset.groupby("Dataset"):
-                dummy_df = get_upsetplot_df(sub_df, counts_column=self._substance_id)
+            for dataset, sub_df in self.mic_df.groupby("Dataset"):
+                dummy_df = get_upsetplot_df(
+                        sub_df.dropna(subset=f"MIC{threshold} in µM"),
+                        counts_column="Internal ID",
+                        set_column="Organism",
+                        )
 
                 result_figures.append(
                     Result(
@@ -891,7 +889,88 @@ class MIC(Experiment):  # Minimum Inhibitory Concentration
                         figure=UpSetAltair(dummy_df, title=dataset),
                     )
                 )
+                result_figures.append(
+                    Result(
+                        dataset,
+                        f"{dataset}_PotencyDistribution",
+                        figure=potency_distribution(sub_df, threshold, dataset)
+                    )
+                )
         return result_figures
+
+    def get_mic_df(self, df):
+        df = df[
+            (df["Dataset"] != "Negative Control") & (df["Dataset"] != "Blank")
+        ].dropna(subset=["Concentration"])
+
+        pivot_df = pd.pivot_table(
+            df,
+            values=["Relative Optical Density", "Replicate", "Z-Factor"],
+            index=[
+                "Internal ID",
+                "External ID",
+                "Organism",
+                "Concentration",
+                "Dataset",
+            ],
+            aggfunc={
+                "Relative Optical Density": ["mean"],
+                "Replicate": ["count"],
+                "Z-Factor": [
+                    "mean",
+                    "std",
+                ],  # does this make sense? with std its usable.
+                # "Z-Factor": ["std"],
+            },
+        ).reset_index()
+
+        pivot_df.columns = [" ".join(x).strip() for x in pivot_df.columns.ravel()]
+
+        mic_records = []
+        for group_names, grp in pivot_df.groupby(
+            ["Internal ID", "External ID", "Organism", "Dataset"]
+        ):
+            internal_id, external_id, organism, dataset = group_names
+            # Sort by concentration just to be sure:
+            grp = grp[
+                [
+                    "Concentration",
+                    "Relative Optical Density mean",
+                    "Z-Factor mean",
+                    "Z-Factor std",
+                ]
+            ].sort_values(by=["Concentration"])
+
+            # Get rows where the OD is below the given threshold:
+            record = {
+                "Internal ID": internal_id,
+                "External ID": external_id,
+                "Organism": organism,
+                "Dataset": dataset,
+                "Z-Factor mean": list(grp["Z-Factor mean"])[0],
+                "Z-Factor std": list(grp["Z-Factor std"])[0],
+            }
+
+            for threshold in self.thresholds:
+                values_below_threshold = grp[
+                    grp["Relative Optical Density mean"] < threshold
+                ]
+                # thx to jonathan - check if the OD at maximum concentration is below threshold (instead of any concentration)
+                max_conc_below_threshold = list(
+                    grp[grp["Concentration"] == max(grp["Concentration"])][
+                        "Relative Optical Density mean"
+                    ]
+                    < threshold
+                )[0]
+                if not max_conc_below_threshold:
+                    mic = None
+                else:
+                    mic = values_below_threshold.iloc[0]["Concentration"]
+                record[f"MIC{threshold} in µM"] = mic
+            mic_records.append(record)
+        # Drop entries where no MIC could be determined
+        mic_df = pd.DataFrame.from_records(mic_records)
+        return mic_df
 
     @cached_property
     def _resulttables(self) -> list[Result]:
@@ -901,80 +980,6 @@ class MIC(Experiment):  # Minimum Inhibitory Concentration
         """
         result_tables = []
         df = self.processed.copy()
-
-        def get_mic_df(df):
-            df = df[
-                (df["Dataset"] != "Negative Control") & (df["Dataset"] != "Blank")
-            ].dropna(subset=["Concentration"])
-
-            pivot_df = pd.pivot_table(
-                df,
-                values=["Relative Optical Density", "Replicate", "Z-Factor"],
-                index=[
-                    "Internal ID",
-                    "External ID",
-                    "Organism",
-                    "Concentration",
-                    "Dataset",
-                ],
-                aggfunc={
-                    "Relative Optical Density": ["mean"],
-                    "Replicate": ["count"],
-                    "Z-Factor": [
-                        "mean",
-                        "std",
-                    ],  # does this make sense? with std its usable.
-                    # "Z-Factor": ["std"],
-                },
-            ).reset_index()
-
-            pivot_df.columns = [" ".join(x).strip() for x in pivot_df.columns.ravel()]
-
-            mic_records = []
-            for group_names, grp in pivot_df.groupby(
-                ["Internal ID", "External ID", "Organism", "Dataset"]
-            ):
-                internal_id, external_id, organism, dataset = group_names
-                # Sort by concentration just to be sure:
-                grp = grp[
-                    [
-                        "Concentration",
-                        "Relative Optical Density mean",
-                        "Z-Factor mean",
-                        "Z-Factor std",
-                    ]
-                ].sort_values(by=["Concentration"])
-
-                # Get rows where the OD is below the given threshold:
-                record = {
-                    "Internal ID": internal_id,
-                    "External ID": external_id,
-                    "Organism": organism,
-                    "Dataset": dataset,
-                    "Z-Factor mean": list(grp["Z-Factor mean"])[0],
-                    "Z-Factor std": list(grp["Z-Factor std"])[0],
-                }
-
-                for threshold in self.thresholds:
-                    values_below_threshold = grp[
-                        grp["Relative Optical Density mean"] < threshold
-                    ]
-                    # thx to jonathan - check if the OD at maximum concentration is below threshold (instead of any concentration)
-                    max_conc_below_threshold = list(
-                        grp[grp["Concentration"] == max(grp["Concentration"])][
-                            "Relative Optical Density mean"
-                        ]
-                        < threshold
-                    )[0]
-                    if not max_conc_below_threshold:
-                        mic = None
-                    else:
-                        mic = values_below_threshold.iloc[0]["Concentration"]
-                    record[f"MIC{threshold} in µM"] = mic
-                mic_records.append(record)
-            # Drop entries where no MIC could be determined
-            mic_df = pd.DataFrame.from_records(mic_records)
-            return mic_df
 
         def get_ref_mics(df):
             only_references = df[
@@ -1020,7 +1025,7 @@ class MIC(Experiment):  # Minimum Inhibitory Concentration
             reference_mics = pd.DataFrame.from_records(mic_records)
             return reference_mics
 
-        mic_df = get_mic_df(df)
+        # mic_df = self.get_mic_df(df)
         references_mic_results = get_ref_mics(df)
 
         result_tables.append(Result(
@@ -1031,13 +1036,13 @@ class MIC(Experiment):  # Minimum Inhibitory Concentration
 
         # If precipitation has been done, merge MPC results on long mic_df
         if not self.precipitation.results.empty:
-            mic_df = pd.merge(mic_df, self.substances_minimum_precipitation_conc)
+            mic_df = pd.merge(self.mic_df, self.substances_minimum_precipitation_conc)
 
         result_tables.append(
-            Result("All", "MIC_Results_AllDatasets_longformat", table=mic_df)
+            Result("All", "MIC_Results_AllDatasets_longformat", table=self.mic_df)
         )
 
-        for dataset, dataset_grp in mic_df.groupby("Dataset"):
+        for dataset, dataset_grp in self.mic_df.groupby("Dataset"):
             pivot_multiindex_df = pd.pivot_table(
                 dataset_grp,
                 values=[f"MIC{threshold} in µM" for threshold in self.thresholds]
