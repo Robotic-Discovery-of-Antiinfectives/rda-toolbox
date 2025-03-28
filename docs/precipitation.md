@@ -7,6 +7,10 @@ This assay helps us to mark this false positive result.
 Precipitation testing is usually done additionally on an experiment such as MIC or primary screen.
 Therefore, the following examples are for the evaluation of a MIC assay with precipitation measurement.
 
+The threshold for a substance to be precipitated is the **limit of quantification**(LoQ) [[1]](https://de.wikipedia.org/wiki/Bestimmungsgrenze),[[2]](https://pubmed.ncbi.nlm.nih.gov/8013092/):
+
+> LoQ = mean(background) + 10 * standarddeviation(background)
+
 There is an option to exclude outliers from the precipitation background samples.
 For now, outliers are detected by checking for values 2 times above the median of the background samples.
 ```Python
