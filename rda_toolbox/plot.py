@@ -680,3 +680,58 @@ def mic_hitstogram(
     )
 
     return alt.layer(bars, text)
+
+
+def potency_distribution(
+    dataset_grp: pd.DataFrame,
+    threshold: float,
+    dataset: str,
+    intervals: list[float] = [0.05, 0.1, 0.78, 6.25, 50],
+    title: str = "Potency Distribution",
+    ylabel: str = "Number of Compounds",
+    xlabel: str = "MIC Interval",
+    legendlabelorient: str = "bottom",  # right, bottom, top-left, etc.
+):
+    """
+    Input: MIC.results["MIC_Results_AllDatasets_longformat"]
+    or
+    MIC.results.MIC_Results_AllDatasets_longformat
+
+    Returns a list of potency distribution (histogram if MIC intervals) plots for each dataset.
+    """
+    no_mic = (
+        dataset_grp[dataset_grp[f"MIC{threshold} in µM"].isna()]["Organism"]
+        .value_counts()
+        .reset_index(name=ylabel)
+    )
+    no_mic[xlabel] = f">{max(intervals)}"
+    sub_df = (
+        dataset_grp.groupby("Organism")[f"MIC{threshold} in µM"]
+        .value_counts(bins=intervals, dropna=False)
+        .rename_axis(["Organism", xlabel])
+        .reset_index(name=ylabel)
+    )
+    sub_df[xlabel] = sub_df[xlabel].astype(str)
+    sub_df = pd.concat([no_mic, sub_df])
+    legendcolumns = None
+    if legendlabelorient == "bottom":
+        legendcolumns = 3
+    base = alt.Chart(sub_df, title=alt.Title(title, subtitle=[f"Dataset: {dataset}"]))
+    bar = base.mark_bar(stroke="white").encode(
+        alt.X(f"{xlabel}:N").axis(labelAngle=0),
+        y=alt.Y(f"{ylabel}:Q"),
+        color=alt.Color("Organism:N").legend(
+            orient=legendlabelorient,
+            labelLimit=200,
+            fillColor="white",
+            columns=legendcolumns,
+        ),
+        xOffset="Organism:N",
+    )
+    text = base.mark_text(dy=-5).encode(
+        alt.X(f"{xlabel}:N"),
+        y=f"{ylabel}:Q",
+        xOffset="Organism:N",
+        text=f"{ylabel}:Q",
+    )
+    return alt.layer(bar, text)
