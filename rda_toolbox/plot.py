@@ -48,11 +48,13 @@ def plateheatmaps(
     blank="Medium",
 ) -> alt.vegalite.v5.api.HConcatChart:
     """
-    - df: Dataframe with relevant data
-    - ID: column name in df containing the unique substance id
-    - measurement: column name in df with the measurements to colorize via heatmaps
-    - negative_control: controls with organism + medium
-    - blank: controls with only medium (no organism and therefore no growth)
+    Parameters:
+        df (pandas.DataFrame): Dataframe with relevant data
+        substance_id (str): column name in df containing the unique substance id
+        measurement (str): column name in df with the measurements to colorize via heatmaps
+        negative_control (str): controls with organism + medium
+        blank (str): controls with only medium (no organism and therefore no growth)
+
     Plots heatmaps of the plates from df in a gridlike manner.
     Exclude unwanted plates, for example Blanks from the df outside this function, like so
     `df[df["Organism"] != "Blank"]`
@@ -173,27 +175,25 @@ def UpSetAltair(
     """This function generates Altair-based interactive UpSet plots.
 
     Parameters:
-        - data (pandas.DataFrame): Tabular data containing the membership of each element (row) in
-            exclusive intersecting sets (column).
-        - sets (list): List of set names of interest to show in the UpSet plots.
-            This list reflects the order of sets to be shown in the plots as well.
-        - abbre (dict): Dictionary mapping set names to abbreviated set names.
-        - sort_by (str): "frequency" or "degree"
-        - sort_by_order (str): "ascending" or "descending"
-        - inter_degree_frequency: "ascending" or "descending", only makes sense if sort_by="degree"
-        - width (int): Vertical size of the UpSet plot.
-        - height (int): Horizontal size of the UpSet plot.
-        - height_ratio (float): Ratio of height between upper and under views, ranges from 0 to 1.
-        - horizontal_bar_chart_width (int): Width of horizontal bar chart on the bottom-right.
-        - set_colors_dict (dict): Dictionary containing the sets as keys with corresponding colors as values
-        - highlight_color (str): Color to encode intersecting sets upon mouse hover.
-        - glyph_size (int): Size of UpSet glyph (⬤).
-        - set_label_bg_size (int): Size of label background in the horizontal bar chart.
-        - line_connection_size (int): width of lines in matrix view.
-        - horizontal_bar_size (int): Height of bars in the horizontal bar chart.
-        - vertical_bar_label_size (int): Font size of texts in the vertical bar chart on the top.
-        - vertical_bar_padding (int): Gap between a pair of bars in the vertical bar charts.
-        - set_labelstyle (str): "normal" (default) or "italic"
+          data (pandas.DataFrame): Tabular data containing the membership of each element (row) in exclusive intersecting sets (column).
+          sets (list): List of set names of interest to show in the UpSet plots. This list reflects the order of sets to be shown in the plots as well.
+          abbre (dict): Dictionary mapping set names to abbreviated set names.
+          sort_by (str): "frequency" or "degree"
+          sort_by_order (str): "ascending" or "descending"
+          inter_degree_frequency (str): "ascending" or "descending", only makes sense if sort_by="degree"
+          width (int): Vertical size of the UpSet plot.
+          height (int): Horizontal size of the UpSet plot.
+          height_ratio (float): Ratio of height between upper and under views, ranges from 0 to 1.
+          horizontal_bar_chart_width (int): Width of horizontal bar chart on the bottom-right.
+          set_colors_dict (dict): Dictionary containing the sets as keys with corresponding colors as values
+          highlight_color (str): Color to encode intersecting sets upon mouse hover.
+          glyph_size (int): Size of UpSet glyph (⬤).
+          set_label_bg_size (int): Size of label background in the horizontal bar chart.
+          line_connection_size (int): width of lines in matrix view.
+          horizontal_bar_size (int): Height of bars in the horizontal bar chart.
+          vertical_bar_label_size (int): Font size of texts in the vertical bar chart on the top.
+          vertical_bar_padding (int): Gap between a pair of bars in the vertical bar charts.
+          set_labelstyle (str): "normal" (default) or "italic"
 
     Run rda.utility.get_upsetplot_df() on the df before trying this function.
     """
@@ -694,10 +694,27 @@ def potency_distribution(
 ):
     """
     Input: MIC.results["MIC_Results_AllDatasets_longformat"]
-    or
-    MIC.results.MIC_Results_AllDatasets_longformat
 
-    Returns a list of potency distribution (histogram if MIC intervals) plots for each dataset.
+    Returns a potency distribution (histogram if MIC intervals) plot.
+
+    Example: Obtain a list of potency distribution plots. One plot per dataset and threshold.
+    ```
+    plots_per_dataset = []
+    thresholds = [50.0]
+    for threshold in thresholds:
+        for dataset, dataset_grp in mic_df.groupby("Dataset"):
+            plots_per_dataset.append(potency_distribution(dataset_grp, threshold, dataset))
+    ```
+
+    Parameters:
+        dataset_grp (pd.DataFrame): Group DataFrame from grouping via Datasets.
+        threshold (float): single threshold value (usually from a list of thresholds).
+        dataset (str): The name of the dataset.
+        intervals (list[float]): the upper limits for the interval bins.
+        title (str): Plot title.
+        ylabel (str): Y-Axis label.
+        xlabel (str): X-Axis label.
+        legendlabelorient (str): Position of the legend (options: "left", "right", "top", "bottom", "top-left", "top-right", "bottom-left", "bottom-right", "none" (Default))
     """
     no_mic = (
         dataset_grp[dataset_grp[f"MIC{threshold} in µM"].isna()]["Organism"]
@@ -719,7 +736,7 @@ def potency_distribution(
     base = alt.Chart(sub_df, title=alt.Title(title, subtitle=[f"Dataset: {dataset}"]))
     bar = base.mark_bar(stroke="white").encode(
         alt.X(f"{xlabel}:N").axis(labelAngle=0),
-        y=alt.Y(f"{ylabel}:Q"),
+        y=alt.Y(f"{ylabel}:Q").scale(domain=[0, max(sub_df[ylabel])+2]),
         color=alt.Color("Organism:N").legend(
             orient=legendlabelorient,
             labelLimit=200,
