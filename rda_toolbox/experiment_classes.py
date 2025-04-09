@@ -555,8 +555,10 @@ class PrimaryScreen(Experiment):
     def save_figures(self, resultpath, fileformats: list[str] = ["svg", "html"]):
         _save_figures(resultpath, self._resultfigures, fileformats=fileformats)
 
-    def save_tables(self, resultpath, fileformats: list[str] = ["xlsx", "csv"]):
-        _save_tables(resultpath, self._resulttables, fileformats=fileformats)
+    def save_tables(self, result_path, processed_path, fileformats: list[str] = ["xlsx", "csv"]):
+        pathlib.Path(processed_path).mkdir(parents=True, exist_ok=True)
+        self.processed.to_csv(os.path.join(processed_path, "processed.csv"))
+        _save_tables(result_path, self._resulttables, fileformats=fileformats)
 
     def save_results(
         self,
@@ -1097,18 +1099,22 @@ class MIC(Experiment):  # Minimum Inhibitory Concentration
         """
         return {tbl.file_basename: tbl.table for tbl in self._resulttables}
 
-    def save_figures(self, resultpath, fileformats: list[str] = ["svg", "html"]):
-        _save_figures(resultpath, self._resultfigures, fileformats=fileformats)
+    def save_figures(self, result_path, fileformats: list[str] = ["svg", "html"]):
+        _save_figures(result_path, self._resultfigures, fileformats=fileformats)
 
-    def save_tables(self, resultpath, fileformats: list[str] = ["xlsx", "csv"]):
-        _save_tables(resultpath, self._resulttables, fileformats=fileformats)
+    def save_tables(self, result_path, processed_path, fileformats: list[str] = ["xlsx", "csv"]):
+        # Create folder if not existent:
+        pathlib.Path(processed_path).mkdir(parents=True, exist_ok=True)
+        self.processed.to_csv(os.path.join(processed_path, "processed.csv"))
+        _save_tables(result_path, self._resulttables, fileformats=fileformats)
 
     def save_results(
         self,
         tables_path: str,
         figures_path: str,
+        processed_path: str,
         figureformats: list[str] = ["svg", "html"],
         tableformats: list[str] = ["xlsx", "csv"],
     ):
         self.save_figures(figures_path, fileformats=figureformats)
-        self.save_tables(tables_path, fileformats=tableformats)
+        self.save_tables(tables_path, processed_path, fileformats=tableformats)
