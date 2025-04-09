@@ -7,11 +7,15 @@
 import rda_toolbox as rda
 
 mic = rda.MIC(
-    "../data/raw/",
-    "../data/input/MIC_Input.xlsx",
-    "../data/input/DiS_MP_AsT_2024-12-02.txt",
-    "../data/input/AmA_AsT_AcD_20241204.txt",
-    precipitation_rawfilepath = "../data/raw/Precipitation_measurements/",
+    "../data/raw/",  # Folderpath for rawfiles
+    "../data/input/MIC_Input.xlsx",  # Input excel table
+    "../data/input/DiS_MP_AsT_2024-12-02.txt",  # Mapping file from Motherplates to AssayTransfer plates
+    "../data/input/AmA_AsT_AcD_20241204.txt",  # Mapping file from AssayTransfer to ActivityDetermination plates
+    plate_type=384,
+    measurement_label="Raw Optical Density",
+    negative_controls="Organism + Medium",  # Label of negative controls ('Bacteria + Medium', 'Fungi + Medium', 'Organism + Medium', 'Negative Controls' etc.)
+    precip_exclude_outlier=True,  # Exclude outliers from the precipitation
+    precipitation_rawfilepath = "../data/raw/Precipitation_measurements/",  # Folderpath for precipitation rawfiles
 )
 ```
 
@@ -60,5 +64,5 @@ mic.save_figures("../figures/")
 ```
 
 ```Python
-mic.save("../") # project root as directory path
+mic.save_results("../") # project root as directory path
 ```
