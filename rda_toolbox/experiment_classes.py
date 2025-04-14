@@ -564,11 +564,12 @@ class PrimaryScreen(Experiment):
         self,
         tables_path: str,
         figures_path: str,
+        processed_path: str,
         figureformats: list[str] = ["svg", "html"],
         tableformats: list[str] = ["xlsx", "csv"],
     ):
         self.save_figures(figures_path, fileformats=figureformats)
-        self.save_tables(tables_path, fileformats=tableformats)
+        self.save_tables(tables_path, processed_path, fileformats=tableformats)
 
 
 class MIC(Experiment):  # Minimum Inhibitory Concentration
@@ -668,7 +669,7 @@ class MIC(Experiment):  # Minimum Inhibitory Concentration
                     ),
                     include_groups=False,
                 )
-                .reset_index(name="Minimum Precipitation Conc.")
+                .reset_index() # names=["Minimum Precipitation Conc."]
                 .drop(columns="AsT Barcode 384")
             )
         )
@@ -831,7 +832,7 @@ class MIC(Experiment):  # Minimum Inhibitory Concentration
         result_figures.append(
             Result("QualityControl", "plateheatmaps", figure=self.plateheatmap)
         )
-        if self.precipitation:
+        if (self.substances_precipitation is not None) and (not self.substances_precipitation.empty):
             result_figures.append(
                 Result(
                     "QualityControl",
@@ -864,16 +865,19 @@ class MIC(Experiment):  # Minimum Inhibitory Concentration
             else:
                 corresponding_dataset_references = pd.DataFrame()
 
-            result_figures.append(
-                Result(
-                    dataset,
-                    f"{dataset}_lineplots_facet",
-                    figure=lineplots_facet(
-                        pd.concat([dataset_data, corresponding_dataset_references]),
-                        exclude_negative_zfactors=self._exclude_negative_zfactor
-                    ),
+            lineplots_input_df = pd.concat([dataset_data, corresponding_dataset_references])
+            lineplots_input_df = lineplots_input_df.dropna(subset=["Concentration"]).loc[(lineplots_input_df["Dataset"] != "Negative Control") & (lineplots_input_df["Dataset"] != "Blank"), :]
+            if not lineplots_input_df.empty:
+                result_figures.append(
+                    Result(
+                        dataset,
+                        f"{dataset}_lineplots_facet",
+                        figure=lineplots_facet(
+                            lineplots_input_df,
+                            exclude_negative_zfactors=self._exclude_negative_zfactor
+                        ),
+                    )
                 )
-            )
 
         # Save plots per threshold:
         for threshold in self.thresholds:
