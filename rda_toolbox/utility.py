@@ -316,7 +316,6 @@ def prepare_visualization(df, by_id="Internal ID", whisker_width=1, exclude_nega
     df.loc[:, "lerror"] = (
         df["Mean Relative Optical Density"] - df["Std. Relative Optical Density"]
     )
-
     tmp_list = []
     for _, grp in df.groupby([by_id, "Organism"]):
         # use replicate == 1 as the meaned OD is the same in all 3 replicates anyways
@@ -333,9 +332,7 @@ def prepare_visualization(df, by_id="Internal ID", whisker_width=1, exclude_nega
         # .sort_values(by=["Concentration"], ascending=False)
         # grp_sorted[grp_sorted["Concentration"] == 50]["Mean Relative Optical Density"]
         # print(grp.aggregate())
-    # print(tmp_list)
     df = pd.concat(tmp_list)
-    # print(df)
     # df["highest_conc_bigger_50"] = df.groupby([by_id, "Organism"])[
     #     ["Mean Relative Optical Density"]
     # ].transform(
@@ -372,7 +369,7 @@ def save_plot_per_dataset(
     data: pd.DataFrame,
     plotfunc,
     location: str,
-    plotname: str = None,
+    plotname: str | None = None,
     saveformats: list[str] = ["svg", "html"],
 ) -> None:
     """
