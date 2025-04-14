@@ -315,9 +315,10 @@ def parse_mappingfile(
     with open(filepath) as file:
         filecontents = file.read().splitlines()
         key = None
-        for line in filecontents:
+        for i, line in enumerate(filecontents):
             line = line.split(";")
-            if len(line) == 1:
+            if i % 2 == 0:  # if i is even (expect MPs on even lines, alternating with childplates)
+            # if len(line) == 1:
                 key = line[0]
             else:
                 if not key:
