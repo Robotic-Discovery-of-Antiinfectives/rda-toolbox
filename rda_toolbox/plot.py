@@ -567,9 +567,6 @@ def lineplots_facet(
     Output: Altair Chart with faceted lineplots.
     Negative controls and blanks are dropped inside the function.
     """
-    df = df.dropna(subset=["Concentration"]).loc[
-        (df["Dataset"] != "Negative Control") & (df["Dataset"] != "Blank"), :
-    ]
     df = prepare_visualization(
         df, by_id=by_id, exclude_negative_zfactors=exclude_negative_zfactors
     )
