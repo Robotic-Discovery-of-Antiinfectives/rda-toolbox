@@ -658,7 +658,7 @@ class MIC(Experiment):  # Minimum Inhibitory Concentration
         )
         self.substances_minimum_precipitation_conc = ( # minimum precipitation conc = MPC
             None
-            if (self.precipitation.results.empty) and (self.substances_precipitation)
+            if (self.precipitation.results.empty) and (not self.substances_precipitation)
             else (
                 self.substances_precipitation
                 .groupby(["Internal ID", "AsT Barcode 384"])
