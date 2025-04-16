@@ -868,16 +868,18 @@ class MIC(Experiment):  # Minimum Inhibitory Concentration
             lineplots_input_df = pd.concat([dataset_data, corresponding_dataset_references])
             lineplots_input_df = lineplots_input_df.dropna(subset=["Concentration"]).loc[(lineplots_input_df["Dataset"] != "Negative Control") & (lineplots_input_df["Dataset"] != "Blank"), :]
             if not lineplots_input_df.empty:
-                result_figures.append(
-                    Result(
-                        dataset,
-                        f"{dataset}_lineplots_facet",
-                        figure=lineplots_facet(
-                            lineplots_input_df,
-                            exclude_negative_zfactors=self._exclude_negative_zfactor
-                        ),
+                for threshold in self.thresholds:
+                    result_figures.append(
+                        Result(
+                            dataset,
+                            f"{dataset}_lineplots_facet_thrsh{threshold}",
+                            figure=lineplots_facet(
+                                lineplots_input_df,
+                                exclude_negative_zfactors=self._exclude_negative_zfactor,
+                                threshold=threshold
+                            ),
+                        )
                     )
-                )
 
         # Save plots per threshold:
         for threshold in self.thresholds:

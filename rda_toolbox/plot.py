@@ -555,11 +555,12 @@ def UpSet_per_dataset(
 
 
 def lineplots_facet(
-    df,
-    hline_y=50,
-    by_id="Internal ID",
-    whisker_width=10,
-    exclude_negative_zfactors=True,
+    df: pd.DataFrame,
+    hline_y: int=50,
+    by_id: str="Internal ID",
+    whisker_width: int=10,
+    exclude_negative_zfactors: bool=True,
+    threshold: float=50.0,
 ) -> alt.vegalite.v5.api.HConcatChart:
     """
     Assay: MIC
@@ -568,7 +569,7 @@ def lineplots_facet(
     Negative controls and blanks are dropped inside the function.
     """
     df = prepare_visualization(
-        df, by_id=by_id, exclude_negative_zfactors=exclude_negative_zfactors
+        df, by_id=by_id, exclude_negative_zfactors=exclude_negative_zfactors, threshold=threshold
     )
     hline_y = 50
     organism_columns = []

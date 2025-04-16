@@ -290,7 +290,7 @@ def smiles_to_imgstr(smiles):
     return imgbuffer_to_imgstr(mol_to_bytes(Chem.MolFromSmiles(smiles)))
 
 
-def prepare_visualization(df, by_id="Internal ID", whisker_width=1, exclude_negative_zfactors=True):
+def prepare_visualization(df, by_id="Internal ID", whisker_width=1, exclude_negative_zfactors=True, threshold=50.0):
     """
     Does formatting for the facet lineplots.
     """
@@ -321,12 +321,11 @@ def prepare_visualization(df, by_id="Internal ID", whisker_width=1, exclude_nega
         # use replicate == 1 as the meaned OD is the same in all 3 replicates anyways
         # print(grp)
         maxconc_below_threshold = (
-            grp[(grp["Replicate"] == 1) & (grp["Concentration"] == 50)][
+            grp[(grp["Replicate"] == 1) & (grp["Concentration"] == grp["Concentration"].max())][
                 "Mean Relative Optical Density"
             ]
-            < 50
+            < threshold
         )
-        # print(list(maxconc_below_threshold)[0])
         grp["max_conc_below_threshold"] = list(maxconc_below_threshold)[0]
         tmp_list.append(grp)
         # .sort_values(by=["Concentration"], ascending=False)
