@@ -48,7 +48,7 @@ def readerfile_parser(
     filedict["plate_type"] = plate_type
     # TODO: get barcode via regex
     barcode_found = re.findall(
-        r"\d{3}[A-Z][a-z][A-Z]\d{2}\d{3}", filedict["Reader Filename"]
+        r"\d{3}[A-Z][a-z]?[a-zA-Z]\d{2}\d{3}", filedict["Reader Filename"]
     )
     if not barcode_found:
         filedict["Barcode"] = filedict["Reader Filename"]
