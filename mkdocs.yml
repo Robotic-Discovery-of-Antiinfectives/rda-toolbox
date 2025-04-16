@@ -12,6 +12,7 @@ nav:
     - Precipitation: precipitation.md
     - Primary Screen: primary.md
     - MIC: mic.md
+    - Useful Functions: utility_functions.md
   - Reference:
     - reference/utility.md
     - reference/plot.md
