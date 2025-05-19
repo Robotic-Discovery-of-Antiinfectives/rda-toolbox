@@ -280,6 +280,31 @@ def imgbuffer_to_imgstr(imgbuffer, prefix="data:image/png;base64,", suffix=""):
     return img_tag
 
 
+def write_excel_MolImages(df: pd.DataFrame, filename: str, molcol_header: str):
+    """
+    Writes images (.png) of molecules structures into an excel file derived from the given dataframe.
+    """
+    if molcol_header not in df:
+        raise ValueError(
+            f"Missing {molcol_header} column in df."
+        )
+
+    df["img_buf"] = df[molcol_header].apply(lambda x: mol_to_bytes(x) if x else None)
+    writer = pd.ExcelWriter(filename, engine="xlsxwriter")
+
+    workbook = writer.book
+    worksheet = workbook.add_worksheet()
+    for i, imgbuf in enumerate(list(df["img_buf"]), start=1):
+        worksheet.set_column(0, 0, 20)
+        worksheet.set_row(i, 120)
+        worksheet.insert_image(
+            f"A{i+1}", "img.png", {"image_data": imgbuf, "x_scale": 0.5, "y_scale": 0.5}
+        )
+
+    df.drop(columns=["img_buf"]).to_excel(writer, startcol=1, index=False)
+    workbook.close()
+
+
 def smiles_to_imgstr(smiles):
     """
     Converts a smiles string to a base64 encoded image string (e.g. for plotting in altair).
@@ -290,7 +315,13 @@ def smiles_to_imgstr(smiles):
     return imgbuffer_to_imgstr(mol_to_bytes(Chem.MolFromSmiles(smiles)))
 
 
-def prepare_visualization(df, by_id="Internal ID", whisker_width=1, exclude_negative_zfactors=True, threshold=50.0):
+def prepare_visualization(
+    df,
+    by_id="Internal ID",
+    whisker_width=1,
+    exclude_negative_zfactors=True,
+    threshold=50.0,
+):
     """
     Does formatting for the facet lineplots.
     """
@@ -321,9 +352,10 @@ def prepare_visualization(df, by_id="Internal ID", whisker_width=1, exclude_nega
         # use replicate == 1 as the meaned OD is the same in all 3 replicates anyways
         # print(grp)
         maxconc_below_threshold = (
-            grp[(grp["Replicate"] == 1) & (grp["Concentration"] == grp["Concentration"].max())][
-                "Mean Relative Optical Density"
-            ]
+            grp[
+                (grp["Replicate"] == 1)
+                & (grp["Concentration"] == grp["Concentration"].max())
+            ]["Mean Relative Optical Density"]
             < threshold
         )
         grp["max_conc_below_threshold"] = list(maxconc_below_threshold)[0]
@@ -456,13 +488,14 @@ def add_precipitation(rawdata, precipitation, mapping_dict):
                     acd_precip["AcD Barcode 384"] = child_barcode
                     precip_all_acd_barcodes.append(acd_precip)
                 # print(acd_barcode, child_barcodes)
-    mapped_precipitation = pd.concat(precip_all_acd_barcodes).drop(columns=["Raw Optical Density", "Layout", "Limit of Quantification"])
+    mapped_precipitation = pd.concat(precip_all_acd_barcodes).drop(
+        columns=["Raw Optical Density", "Layout", "Limit of Quantification"]
+    )
     return pd.merge(rawdata, mapped_precipitation, how="outer")
 
 
 def get_minimum_precipitation_conc(
-    grp: pd.DataFrame,
-    precip_conc_multiplicator
+    grp: pd.DataFrame, precip_conc_multiplicator
 ) -> float | None:
     grp = grp.sort_values("Concentration")
     if grp["Precipitated"].any():
