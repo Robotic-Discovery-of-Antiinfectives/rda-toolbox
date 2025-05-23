@@ -708,7 +708,7 @@ def potency_distribution(
         dataset_grp (pd.DataFrame): Group DataFrame from grouping via Datasets.
         threshold (float): single threshold value (usually from a list of thresholds).
         dataset (str): The name of the dataset.
-        intervals (list[float]): the upper limits for the interval bins.
+        intervals (list[float]): the upper limits for the interval bins. Interval example: (x, y] -> open below x, <= y
         title (str): Plot title.
         ylabel (str): Y-Axis label.
         xlabel (str): X-Axis label.
