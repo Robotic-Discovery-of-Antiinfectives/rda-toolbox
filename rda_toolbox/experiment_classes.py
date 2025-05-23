@@ -24,7 +24,7 @@ from .utility import (
     get_minimum_precipitation_conc,
 )
 from .parser import parse_readerfiles, read_inputfile, parse_mappingfile, read_platemapping
-from .process import preprocess, get_thresholded_subset, mic_process_inputs
+from .process import preprocess, get_thresholded_subset, mic_process_inputs, add_b_score
 from .plot import plateheatmaps, UpSetAltair, lineplots_facet, potency_distribution
 
 
@@ -393,7 +393,7 @@ class PrimaryScreen(Experiment):
 
     @cached_property
     def processed(self):
-        return preprocess(
+        processed = preprocess(
             self.mapped_input_df,
             substance_id=self._substance_id,
             measurement=self._measurement_label.strip(
@@ -403,6 +403,21 @@ class PrimaryScreen(Experiment):
             blanks=self._blanks,
             norm_by_barcode=self._norm_by_barcode,
         )
+
+        # Add B-Scores to plates without negative controls and blanks
+        proc_wo_controls = processed[
+            ~processed[self._substance_id].isin([self._negative_controls, self._blanks])
+        ]
+        # We add b_scores here since we only want them in a primary screen and preprocess() is used generally
+        b_scores = (
+            proc_wo_controls.groupby(self._norm_by_barcode)[
+                [self._norm_by_barcode, "Row_384", "Col_384", self._measurement_label]
+            ]
+            .apply(lambda plate_grp: add_b_score(plate_grp))
+            .reset_index(drop=True)
+        )
+        processed = pd.merge(processed, b_scores, how="outer")
+        return processed
 
     @cached_property
     def plateheatmap(self):
@@ -459,6 +474,7 @@ class PrimaryScreen(Experiment):
         """
         # result_plots = dict() # {"filepath": plot}
         result_tables = []
+        # result_tables.append(Result("All", ))
 
         df = self.processed.copy()
         df = df[

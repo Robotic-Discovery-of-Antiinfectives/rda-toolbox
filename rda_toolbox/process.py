@@ -5,16 +5,15 @@ import pandas as pd
 import os
 import pathlib
 
+from scipy.stats import median_abs_deviation
+
 from .parser import (
-        read_platemapping,
-        parse_mappingfile,
-        parse_readerfiles,
-        read_inputfile,
-        )
-from .utility import (
-        mic_assaytransfer_mapping,
-        mapapply_96_to_384
-    )
+    read_platemapping,
+    parse_mappingfile,
+    parse_readerfiles,
+    read_inputfile,
+)
+from .utility import mic_assaytransfer_mapping, mapapply_96_to_384
 
 
 def zfactor(positive_controls, negative_controls):
@@ -23,6 +22,87 @@ def zfactor(positive_controls, negative_controls):
         * (np.std(positive_controls) + np.std(negative_controls))
         / abs(np.mean(positive_controls - np.mean(negative_controls)))
     )
+
+
+def median_absolute_deviation(x, scale=1.0):
+    med = x.median()
+    x = abs(x - med)
+    mad = x.median()
+    return mad / scale
+
+
+def zfactor_median(positive_controls, negative_controls):
+    return 1 - (
+        3
+        * (
+            median_absolute_deviation(positive_controls)
+            + median_absolute_deviation(negative_controls)
+        )
+        / abs(np.median(positive_controls - np.median(negative_controls)))
+    )
+
+
+def median_polish_df(
+    plate_df: pd.DataFrame,
+    max_iter: int = 100,
+    tol: float = 1e-4,
+    measurement_header: str = "Raw Optical Density",
+    row_header: str = "Row_384",
+    col_header: str = "Col_384",
+) -> pd.DataFrame:
+    plate_df = plate_df.copy()
+
+    plate_df["row_effect"] = 0
+    plate_df["col_effect"] = 0
+
+    overall_effect = plate_df[measurement_header].median()
+    plate_df[measurement_header] -= overall_effect
+
+    for iteration in range(max_iter):
+
+        # ------------------------------------------------------------
+        plate_df["row_median"] = plate_df.groupby(row_header)[
+            measurement_header
+        ].transform("median")
+        plate_df[measurement_header] -= plate_df["row_median"]
+        plate_df["row_effect"] += plate_df["row_median"]
+        overall_effect += plate_df["row_effect"].median()
+        plate_df["row_effect"] -= plate_df["row_effect"].median()
+        # ------------------------------------------------------------
+        plate_df["col_median"] = plate_df.groupby(col_header)[
+            measurement_header
+        ].transform("median")
+        plate_df[measurement_header] -= plate_df["col_median"]
+        plate_df["col_effect"] += plate_df["col_median"]
+        overall_effect += plate_df["col_effect"].median()
+        plate_df["col_effect"] -= plate_df["col_effect"].median()
+        # ------------------------------------------------------------
+
+        if (
+            plate_df["row_median"].abs().max() < tol
+            and plate_df["col_median"].abs().max() < tol
+        ):
+            # print(f"tol break at iteration {iteration}")
+            break
+    return plate_df
+
+
+def add_b_score(
+    plate_df: pd.DataFrame,
+    measurement_header: str = "Raw Optical Density",
+    row_header: str = "Row_384",
+    col_header: str = "Col_384",
+) -> pd.DataFrame:
+    """
+    Expects a Dataframe comprising a **whole** plate (without controls!).
+    """
+    # We could also collect iterations of the median polish function and plot the results to show progress of normalization
+    plate_df = median_polish_df(plate_df)
+    mad_value = median_absolute_deviation(plate_df[measurement_header], scale=1.4826)
+    plate_df["b_scores"] = plate_df[measurement_header] / mad_value
+    return plate_df.drop(
+        columns=["row_effect", "col_effect", "row_median", "col_median", measurement_header]
+        ).round({"b_scores": 2})
 
 
 def minmax_normalization(x, minimum, maximum):
@@ -75,11 +155,14 @@ def background_normalize_zfactor(
 
     grp["Z-Factor"] = zfactor(plate_neg_controls, plate_blank_controls)
 
+    # Robust Z-Factor using median instead of mean:
+    grp["Robust Z-Factor"] = zfactor_median(plate_neg_controls, plate_blank_controls)
+
     return grp
 
 
 def preprocess(
-    df: pd.DataFrame, # mapped inputs
+    df: pd.DataFrame,  # mapped inputs
     substance_id: str = "ID",
     measurement: str = "Optical Density",
     negative_controls: str = "Negative Control",
@@ -105,6 +188,12 @@ def preprocess(
     """
     # merging reader data and input specifications table
     # df = pd.merge(raw_df, input_df, how="outer")
+    # df = df.groupby(norm_by_barcode)[df.columns].apply(
+    #     lambda plate_grp: add_b_score(
+    #         plate_grp[plate_grp[""]],
+    #         # measurement_header="Raw Optical Density"
+    #     )
+    # )
     df = (
         df.groupby(norm_by_barcode)[df.columns]
         .apply(
@@ -125,10 +214,12 @@ def preprocess(
     # detect and report NA values (defined in input, not in raw data)
     orgs_w_missing_data = df[df[f"Raw {measurement}"].isna()].Organism.unique()
     if orgs_w_missing_data.size > 0:
-        print(f"""Processed data:
+        print(
+            f"""Processed data:
       Organisms with missing data, excluded from processed data: {orgs_w_missing_data}.
       If this is not intended, please check the Input.xlsx or if raw data files are complete.
-              """)
+              """
+        )
         df = df.dropna(subset=[f"Raw {measurement}"])
     # Report missing
     # Remove missing from "processed" dataframe
@@ -137,6 +228,7 @@ def preprocess(
             "Denoised Optical Density": 2,
             "Relative Optical Density": 2,
             "Z-Factor": 2,
+            "Robust Z-Factor": 2,
             "Concentration": 2,
         }
     )
@@ -183,7 +275,7 @@ def get_thresholded_subset(
         (df[id_column] != blanks)
         & (df[id_column] != negative_controls)
         & (df["Organism"] != blankplate_organism),
-        :
+        :,
     ].copy()
     # Apply threshold:
     if threshold:
@@ -338,24 +430,22 @@ def mic_process_inputs(
         )
     # Check if all of the necessary column are complete:
     if substances[necessary_columns].isnull().values.any():
-        raise ValueError(
-            "Input table incomplete, contains NA (missing) values."
-        )
+        raise ValueError("Input table incomplete, contains NA (missing) values.")
     # Check if there are duplicates in the internal IDs (apart from references)
-    if any(substances[substances["Dataset"] != "Reference"]["Internal ID"].duplicated()):
+    if any(
+        substances[substances["Dataset"] != "Reference"]["Internal ID"].duplicated()
+    ):
         raise ValueError("Duplicate Internal IDs.")
 
     # Map AssayTransfer barcodes to the motherplate barcodes:
-    substances["Row_384"], substances["Col_384"], substances["AsT Barcode 384"] = (
-        zip(
-            *substances.apply(
-                lambda row: mic_assaytransfer_mapping(
-                    row["MP Position 96"],
-                    row["MP Barcode 96"],
-                    ast_platemapping,
-                ),
-                axis=1,
-            )
+    substances["Row_384"], substances["Col_384"], substances["AsT Barcode 384"] = zip(
+        *substances.apply(
+            lambda row: mic_assaytransfer_mapping(
+                row["MP Position 96"],
+                row["MP Barcode 96"],
+                ast_platemapping,
+            ),
+            axis=1,
         )
     )
     acd_platemapping, replicates_dict = read_platemapping(
@@ -363,14 +453,18 @@ def mic_process_inputs(
     )
 
     num_replicates = list(set(replicates_dict.values()))[0]
-    print(f"""
+    print(
+        f"""
 Rows expected without concentrations:\n
 {len(substances["Internal ID"].unique())} (unique substances) * {len(organisms)} (organisms) * {num_replicates} (replicates) = {len(substances["Internal ID"].unique()) * 5 * 3}
-    """)
-    print(f"""
+    """
+    )
+    print(
+        f"""
 Rows expected with concentrations:\n
 {len(substances["Internal ID"].unique())} (unique substances) * {len(organisms)} (organisms) * {num_replicates} (replicates) * (11 (concentrations) + 1 (Medium/Blank or Negative Control)) = {len(substances["Internal ID"].unique()) * len(organisms) * num_replicates * (11 + 1) }
-    """)
+    """
+    )
     single_subst_concentrations = []
 
     for substance, subst_row in substances.groupby("Internal ID"):
@@ -397,9 +491,9 @@ Rows expected with concentrations:\n
         for org_i, organism in enumerate(organisms):
             for replicate in range(num_replicates):
                 # Add the AcD barcode
-                ast_plate["AcD Barcode 384"] = acd_platemapping[ast_barcode][
-                    replicate
-                ][org_i]
+                ast_plate["AcD Barcode 384"] = acd_platemapping[ast_barcode][replicate][
+                    org_i
+                ]
 
                 ast_plate["Replicate"] = replicate + 1
                 # Add the scientific Organism name
@@ -422,10 +516,9 @@ def mic_results(df, filepath, thresholds=[20, 50]):
     at the given thresholds.
     """
 
-    df = df[
-        (df["Dataset"] != "Negative Control")
-        & (df["Dataset"] != "Blank")
-    ].dropna(subset=["Concentration"])
+    df = df[(df["Dataset"] != "Negative Control") & (df["Dataset"] != "Blank")].dropna(
+        subset=["Concentration"]
+    )
     # the above should remove entries where Concentration == NAN
 
     # Pivot table to get the aggregated values:
@@ -457,9 +550,14 @@ def mic_results(df, filepath, thresholds=[20, 50]):
         internal_id, external_id, organism, dataset = group_names
         # Sort by concentration just to be sure:
         grp = grp[
-            ["Concentration", "Relative Optical Density mean", "Z-Factor mean", "Z-Factor std"]
+            [
+                "Concentration",
+                "Relative Optical Density mean",
+                "Z-Factor mean",
+                "Z-Factor std",
+            ]
         ].sort_values(by=["Concentration"])
-        #print(grp)
+        # print(grp)
         # Get rows where the OD is below the given threshold:
         record = {
             "Internal ID": internal_id,
@@ -494,11 +592,14 @@ def mic_results(df, filepath, thresholds=[20, 50]):
     #     how="all",
     #     inplace=True,
     # )
-    mic_df.round(2).to_excel(os.path.join(filepath, "MIC_Results_AllDatasets_longformat.xlsx"), index=False)
+    mic_df.round(2).to_excel(
+        os.path.join(filepath, "MIC_Results_AllDatasets_longformat.xlsx"), index=False
+    )
     for dataset, dataset_grp in mic_df.groupby(["Dataset"]):
         pivot_multiindex_df = pd.pivot_table(
             dataset_grp,
-            values=[f"MIC{threshold} in µM" for threshold in thresholds] + ["Z-Factor mean", "Z-Factor std"],
+            values=[f"MIC{threshold} in µM" for threshold in thresholds]
+            + ["Z-Factor mean", "Z-Factor std"],
             index=["Internal ID", "External ID", "Dataset"],
             columns="Organism",
         ).reset_index()
@@ -508,7 +609,7 @@ def mic_results(df, filepath, thresholds=[20, 50]):
         # References special case
         if dataset[0] == "Reference":
             references_mic_results(df, resultpath, thresholds=thresholds)
-            continue # skip for references
+            continue  # skip for references
 
         pathlib.Path(resultpath).mkdir(parents=True, exist_ok=True)
         for threshold in thresholds:
@@ -519,11 +620,9 @@ def mic_results(df, filepath, thresholds=[20, 50]):
             cols[0] = "Internal ID"
             cols[1] = "External ID"
             organisms_thresholded_mics.columns = cols
-            organisms_thresholded_mics = (
-                organisms_thresholded_mics.sort_values(
-                    by=list(organisms_thresholded_mics.columns)[2:],
-                    na_position="last",
-                )
+            organisms_thresholded_mics = organisms_thresholded_mics.sort_values(
+                by=list(organisms_thresholded_mics.columns)[2:],
+                na_position="last",
             )
             # organisms_thresholded_mics.dropna(
             #     subset=list(organisms_thresholded_mics.columns)[2:],
@@ -532,9 +631,7 @@ def mic_results(df, filepath, thresholds=[20, 50]):
             # )
             organisms_thresholded_mics.fillna("NA", inplace=True)
             organisms_thresholded_mics.to_excel(
-                os.path.join(
-                    resultpath, f"{dataset[0]}_MIC{threshold}_results.xlsx"
-                ),
+                os.path.join(resultpath, f"{dataset[0]}_MIC{threshold}_results.xlsx"),
                 index=False,
             )
 
@@ -551,9 +648,7 @@ def references_mic_results(
     To circumvent this, this function exists which gets the MIC
     for each reference **per (AcD) plate** instead of per Internal ID.
     """
-    only_references = preprocessed_data[
-        preprocessed_data["Dataset"] == "Reference"
-    ]
+    only_references = preprocessed_data[preprocessed_data["Dataset"] == "Reference"]
     mic_records = []
     for group_names, grp in only_references.groupby(
         [
@@ -575,9 +670,7 @@ def references_mic_results(
             "Z-Factor": list(grp["Z-Factor"])[0],
         }
         for threshold in thresholds:
-            values_below_threshold = grp[
-                grp["Relative Optical Density"] < threshold
-            ]
+            values_below_threshold = grp[grp["Relative Optical Density"] < threshold]
             # thx to jonathan - check if the OD at maximum concentration is below threshold (instead of any concentration)
             max_conc_below_threshold = list(
                 grp[grp["Concentration"] == max(grp["Concentration"])][
@@ -635,14 +728,14 @@ def primary_process_inputs(
     result_df = pd.concat(
         [
             pd.merge(org_df, ast_plate_df)
-            for _, org_df in pd.merge(
-                mapped_organisms, rawdata
-            ).groupby("Organism")
+            for _, org_df in pd.merge(mapped_organisms, rawdata).groupby("Organism")
         ]
     )
 
     for ast_barcode, ast_plate in result_df.groupby("AsT Barcode 384"):
-        print(f"AsT Plate {ast_barcode} has size: {len(ast_plate)//len(ast_plate['AcD Barcode 384'].unique())}")
+        print(
+            f"AsT Plate {ast_barcode} has size: {len(ast_plate)//len(ast_plate['AcD Barcode 384'].unique())}"
+        )
         print(f"{ast_barcode} -> {ast_plate["AcD Barcode 384"].unique()}")
 
     return result_df
@@ -705,7 +798,6 @@ def primary_results(
                 index=False,
             )
 
-
             pivot_multiindex_df = pd.pivot_table(
                 dataset_grp,
                 values=[f"Relative Optical Density mean"],
@@ -713,14 +805,16 @@ def primary_results(
                 columns="Organism",
             ).reset_index()
             cols = list(pivot_multiindex_df.columns.droplevel())
-            cols[:3] = list(
-                map(lambda x: x[0], pivot_multiindex_df.columns[:3])
-            )
+            cols[:3] = list(map(lambda x: x[0], pivot_multiindex_df.columns[:3]))
             pivot_multiindex_df.columns = cols
 
             # Apply threshold (active in any organism)
             thresholded_pivot = pivot_multiindex_df.iloc[
-                  list(pivot_multiindex_df.iloc[:, 3:].apply(lambda x: any(list(map(lambda i: i < threshold, x))), axis=1))
+                list(
+                    pivot_multiindex_df.iloc[:, 3:].apply(
+                        lambda x: any(list(map(lambda i: i < threshold, x))), axis=1
+                    )
+                )
             ]
 
             # Sort by columns each organism after the other
@@ -730,12 +824,22 @@ def primary_results(
             results_sorted_by_mean_activity = thresholded_pivot.iloc[
                 thresholded_pivot.iloc[:, 3:].mean(axis=1).argsort()
             ]
-            print("Saving", os.path.join(resultpath, f"{dataset}_threshold{threshold}_results.xlsx"))
+            print(
+                "Saving",
+                os.path.join(
+                    resultpath, f"{dataset}_threshold{threshold}_results.xlsx"
+                ),
+            )
             results_sorted_by_mean_activity.to_excel(
-                os.path.join(resultpath, f"{dataset}_threshold{threshold}_results.xlsx"),
+                os.path.join(
+                    resultpath, f"{dataset}_threshold{threshold}_results.xlsx"
+                ),
                 index=False,
             )
-            print("Saving", os.path.join(resultpath, f"{dataset}_threshold{threshold}_results.csv"))
+            print(
+                "Saving",
+                os.path.join(resultpath, f"{dataset}_threshold{threshold}_results.csv"),
+            )
             results_sorted_by_mean_activity.to_csv(
                 os.path.join(resultpath, f"{dataset}_threshold{threshold}_results.csv"),
                 index=False,
