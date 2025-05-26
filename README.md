@@ -52,6 +52,6 @@ This package uses [Vega-Altair](https://altair-viz.github.io/index.html) for cre
 2) Update `docs/source/conf.py` release version
 3) On GitHub go to *releases* and `Draft a new release`
 
-### This package is managed via [Poetry](https://python-poetry.org/docs/basic-usage/)
-- `poetry build`
-- `poetry publish`
+### This package is managed via [UV](https://docs.astral.sh/uv/guides/package/#preparing-your-project-for-packaging)
+- `uv build`
+- `uv publish`
