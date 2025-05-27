@@ -253,6 +253,7 @@ class PrimaryScreen(Experiment):
         blanks: str = "Medium",
         norm_by_barcode: str = "AcD Barcode 384",
         thresholds: list[float] = [50.0],
+        b_score_threshold: float = -3.0,
         precipitation_rawfilepath: str | None = None,
         background_locations: pd.DataFrame | list[str] = [f"{row}24" for row in string.ascii_uppercase[:16]],
         precip_exclude_outlier: bool = False,
@@ -281,6 +282,7 @@ class PrimaryScreen(Experiment):
         self._blanks = blanks
         self._norm_by_barcode = norm_by_barcode
         self.thresholds = thresholds
+        self.b_score_threshold = b_score_threshold
         self.precipitation = (
             Precipitation(
                 precipitation_rawfilepath,
@@ -485,7 +487,7 @@ class PrimaryScreen(Experiment):
 
         pivot_df = pd.pivot_table(
             df,
-            values=["Relative Optical Density", "Replicate", "Z-Factor"],
+            values=["Relative Optical Density", "Replicate", "Z-Factor", "Robust Z-Factor", "b_scores"],
             index=[
                 "Internal ID",
                 "Organism",
@@ -495,13 +497,20 @@ class PrimaryScreen(Experiment):
             aggfunc={
                 "Relative Optical Density": ["mean"],
                 "Replicate": ["count"],
+                "b_scores": ["mean"],
             },
         ).reset_index()
         pivot_df.columns = [" ".join(x).strip() for x in pivot_df.columns.ravel()]
         for threshold in self.thresholds:
+            # Apply Threshold to % Growth:
             pivot_df[f"Relative Growth < {threshold}"] = pivot_df.groupby(
                 ["Internal ID", "Organism", "Dataset"]
             )["Relative Optical Density mean"].transform(lambda x: x < threshold)
+            # Apply B-Score Treshold:
+            # B-Scores <= -3: https://doi.org/10.1128/mbio.00205-25
+            pivot_df[f"B Score <= {self.b_score_threshold}"] = pivot_df.groupby(
+                ["Internal ID", "Organism", "Dataset"]
+            )["b_scores mean"].transform(lambda x: x <= self.b_score_threshold)
 
             for dataset, dataset_grp in pivot_df.groupby("Dataset"):
                 # dataset = dataset[0]
@@ -524,14 +533,6 @@ class PrimaryScreen(Experiment):
                 pivot_multiindex_df.columns = cols
 
                 # Apply threshold (active in any organism)
-                thresholded_pivot = pivot_multiindex_df.iloc[
-                    list(
-                        pivot_multiindex_df.iloc[:, 3:].apply(
-                            lambda x: any(list(map(lambda i: i < threshold, x))), axis=1
-                        )
-                    )
-                ]
-
                 thresholded_pivot = pivot_multiindex_df.iloc[
                     list(
                         pivot_multiindex_df.iloc[:, 3:].apply(
