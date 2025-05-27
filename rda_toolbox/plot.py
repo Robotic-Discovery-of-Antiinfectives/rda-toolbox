@@ -750,3 +750,49 @@ def potency_distribution(
         text=f"{ylabel}:Q",
     )
     return alt.layer(bar, text)
+
+
+def measurement_vs_bscore_scatter(
+    df: pd.DataFrame,
+    measurement_header: str = "Relative Optical Density mean",
+    measurement_title: str = "Relative Optical Density",
+    bscore_header: str = "b_scores mean",
+    bscore_title: str = "B-Score",
+    color_header: str = "Organism",
+    measurement_threshold: float = 50,
+    b_score_threshold: float = -3,
+):
+    """
+    Creates a scatter plot for Primary Screens plotting the raw measurement values against B-Scores.
+    Dont forget to exclude controls from the given DF.
+    """
+    chart_df = df.copy()
+    # Add values for thresholds
+    chart_df["Growth Threshold"] = measurement_threshold
+    chart_df["B-Score Threshold"] = b_score_threshold
+    base = alt.Chart(chart_df, width=600)
+    chart = base.mark_circle().encode(
+        x=alt.X(f"{bscore_header}:Q", title=bscore_title),
+        y=alt.Y(
+            f"{measurement_header}:Q",
+            scale=alt.Scale(reverse=True),
+            title=measurement_title,
+        ),
+        color=f"{color_header}:N",
+    )
+    growth_threshold_rule = base.mark_rule(color="blue", strokeDash=[4.4]).encode(
+        y="Growth Threshold:Q"
+    )
+    bscore_threshold_rule = base.mark_rule(color="red", strokeDash=[4.4]).encode(
+        x="B-Score Threshold:Q"
+    )
+
+    rect = base.mark_rect(color="blue").encode(
+        y=f"min({measurement_header})",
+        y2="Growth Threshold",
+        x="B-Score Threshold",
+        x2=f"min({bscore_header})",
+        opacity=alt.value(0.2),
+    )
+
+    return alt.layer(chart, growth_threshold_rule, bscore_threshold_rule, rect)
