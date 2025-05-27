@@ -315,6 +315,16 @@ def smiles_to_imgstr(smiles):
     return imgbuffer_to_imgstr(mol_to_bytes(Chem.MolFromSmiles(smiles)))
 
 
+def inchi_to_imgstr(inchi):
+    """
+    Converts a inchi string to a base64 encoded image string (e.g. for plotting in altair).
+    It's a convenience function consisting of rda.utility.mol_to_bytes() and rda.utility.imgbuffer_to_imgstr(),
+    use these if you want more fine grained control over the format of the returned string.
+    Example: df["image"] = df["inchi"].apply(lambda inchi: inchi_to_imgstr(inchi))
+    """
+    return imgbuffer_to_imgstr(mol_to_bytes(Chem.MolFromInchi(inchi)))
+
+
 def prepare_visualization(
     df,
     by_id="Internal ID",
