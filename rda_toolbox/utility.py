@@ -574,3 +574,27 @@ def to_excel_molimages(
 
     df.loc[:, desired_columns].to_excel(writer, startcol=1, index=False)
     workbook.close()
+
+
+def check_activity_conditions(
+        organism_measurements,
+        organism_bscores,
+        measurement_threshold,
+        bscore_threshold,
+        ):
+    check_conditions = []
+    for i, value in enumerate(organism_measurements):
+        if value < measurement_threshold:  # If below growth threshold:
+            if (
+                    # Check if the sample which seems 'active' for ONE organism has a viable B-Score for this exact organism
+                    list(organism_bscores)[i] < bscore_threshold
+                    ):  # AND if below B-Score threshold
+                check_conditions.append(True)
+            else:
+                check_conditions.append(False)
+        else:
+            check_conditions.append(False)
+    # print(check_conditions)
+    return any(
+            check_conditions
+            )  # Any because we want the values for other organisms if sample is active in one
