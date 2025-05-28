@@ -22,10 +22,17 @@ from .utility import (
     _save_figures,
     mic_assaytransfer_mapping,
     get_minimum_precipitation_conc,
+    check_activity_conditions,
 )
 from .parser import parse_readerfiles, read_inputfile, parse_mappingfile, read_platemapping
 from .process import preprocess, get_thresholded_subset, mic_process_inputs, add_b_score
-from .plot import plateheatmaps, UpSetAltair, lineplots_facet, potency_distribution
+from .plot import (
+    plateheatmaps,
+    UpSetAltair,
+    lineplots_facet,
+    potency_distribution,
+    measurement_vs_bscore_scatter,
+)
 
 
 class Experiment:
@@ -449,6 +456,25 @@ class PrimaryScreen(Experiment):
             )
 
         for threshold in self.thresholds:
+            result_figures.append(
+                Result(
+                    "QualityControl",
+                    "Measurement_vs_BScore_Scatter",
+                    figure=measurement_vs_bscore_scatter(
+                        self.processed[
+                            ~self.processed["Internal ID"].isin(
+                                [self._negative_controls, self._blanks]
+                            )
+                        ],
+                        measurement_header=self._measurement_label,
+                        measurement_title=self._measurement_label,
+                        color_header="Dataset",
+                        measurement_threshold=threshold,
+                        b_score_threshold=self.b_score_threshold,
+                    ).facet(row="Organism", column="Dataset"),
+                )
+            )
+
             subset = get_thresholded_subset(
                 self._processed_only_substances,
                 id_column=self._substance_id,
@@ -474,6 +500,7 @@ class PrimaryScreen(Experiment):
         Retrieves result tables and returns them like list[Resulttable]
         where Resulttable is a dataclass collecting meta information about the plot.
         """
+
         # result_plots = dict() # {"filepath": plot}
         result_tables = []
         # result_tables.append(Result("All", ))
@@ -500,17 +527,19 @@ class PrimaryScreen(Experiment):
                 "b_scores": ["mean"],
             },
         ).reset_index()
+
         pivot_df.columns = [" ".join(x).strip() for x in pivot_df.columns.ravel()]
+
         for threshold in self.thresholds:
             # Apply Threshold to % Growth:
-            pivot_df[f"Relative Growth < {threshold}"] = pivot_df.groupby(
-                ["Internal ID", "Organism", "Dataset"]
-            )["Relative Optical Density mean"].transform(lambda x: x < threshold)
+            # pivot_df[f"Relative Growth < {threshold}"] = pivot_df.groupby(
+            #     ["Internal ID", "Organism", "Dataset"]
+            # )["Relative Optical Density mean"].transform(lambda x: x < threshold)
             # Apply B-Score Treshold:
             # B-Scores <= -3: https://doi.org/10.1128/mbio.00205-25
-            pivot_df[f"B Score <= {self.b_score_threshold}"] = pivot_df.groupby(
-                ["Internal ID", "Organism", "Dataset"]
-            )["b_scores mean"].transform(lambda x: x <= self.b_score_threshold)
+            # pivot_df[f"B Score <= {self.b_score_threshold}"] = pivot_df.groupby(
+            #     ["Internal ID", "Organism", "Dataset"]
+            # )["b_scores mean"].transform(lambda x: x <= self.b_score_threshold)
 
             for dataset, dataset_grp in pivot_df.groupby("Dataset"):
                 # dataset = dataset[0]
@@ -522,35 +551,74 @@ class PrimaryScreen(Experiment):
                     Result(dataset, f"{dataset}_all_results", table=dataset_grp)
                 )
 
-                pivot_multiindex_df = pd.pivot_table(
-                    dataset_grp,
-                    values=["Relative Optical Density mean"],
-                    index=["Internal ID", "Dataset", "Concentration"],
-                    columns="Organism",
-                ).reset_index()
-                cols = list(pivot_multiindex_df.columns.droplevel())
-                cols[:3] = list(map(lambda x: x[0], pivot_multiindex_df.columns[:3]))
-                pivot_multiindex_df.columns = cols
-
-                # Apply threshold (active in any organism)
-                thresholded_pivot = pivot_multiindex_df.iloc[
-                    list(
-                        pivot_multiindex_df.iloc[:, 3:].apply(
-                            lambda x: any(list(map(lambda i: i < threshold, x))), axis=1
-                        )
+                # Apply threshold conditions:
+                thresholded_dataset_grp = dataset_grp.groupby("Internal ID").filter(
+                    lambda x: check_activity_conditions(
+                        x["Relative Optical Density mean"],
+                        x["b_scores mean"],
+                        threshold,
+                        self.b_score_threshold,
                     )
-                ]
+                )
+
+                # Pivot the long table for excel viewability:
+                pivot_multiindex_df = pd.pivot_table(
+                        thresholded_dataset_grp,
+                        values=["Relative Optical Density mean", "b_scores mean"],
+                        index=["Internal ID", "Dataset", "Concentration"],
+                        columns="Organism",
+                ).reset_index()
+
+                # pivot_multiindex_df = pd.pivot_table(
+                #     dataset_grp,
+                #     values=["Relative Optical Density mean"],
+                #     index=["Internal ID", "Dataset", "Concentration"],
+                #     columns="Organism",
+                # ).reset_index()
+                # cols = list(pivot_multiindex_df.columns.droplevel())
+                # cols[:3] = list(map(lambda x: x[0], pivot_multiindex_df.columns[:3]))
+                # pivot_multiindex_df.columns = cols
+
+                # # Apply threshold (active in any organism)
+                # thresholded_pivot = pivot_multiindex_df.iloc[
+                #     list(
+                #         pivot_multiindex_df.iloc[:, 3:].apply(
+                #             lambda x: any(list(map(lambda i: i < threshold, x))), axis=1
+                #         )
+                #     )
+                # ]
 
                 # Sort by columns each organism after the other
                 # return pivot_multiindex_df.sort_values(by=cols[3:])
 
                 # Sort rows by mean between the organisms (lowest mean activity first)
-                results_sorted_by_mean_activity = thresholded_pivot.iloc[
-                    thresholded_pivot.iloc[:, 3:].mean(axis=1).argsort()
+                # results_sorted_by_mean_activity = pivot_multiindex_df.iloc[
+                #     pivot_multiindex_df.iloc[:, 3:].mean(axis=1).argsort()
+                # ]
+
+                # Sort rows by mean between the organisms (lowest mean measurement first)
+                results_sorted_by_mean_activity = pivot_multiindex_df.loc[
+                    pivot_multiindex_df.loc[:, list(filter(lambda x: x[0].startswith("Relative Optical Density"), pivot_multiindex_df.columns))].mean(axis=1).argsort()
                 ]
 
                 if not self.precipitation.results.empty:
                     results_sorted_by_mean_activity = pd.merge(results_sorted_by_mean_activity, self.substances_precipitation)
+
+                # Correct "mean" header if its only one replicate (remove 'mean')
+                if sum(thresholded_dataset_grp["Replicate count"].unique()) == 1:
+                    results_sorted_by_mean_activity = results_sorted_by_mean_activity.rename(
+                        columns={
+                            "Relative Optical Density mean": "Relative Optical Density",
+                            "b_scores mean": "B-Score"
+                        }
+                    )
+
+                results_sorted_by_mean_activity = results_sorted_by_mean_activity.rename(
+                        columns={
+                            "b_scores mean": "B-Score mean"
+                        }
+                )
+
                 result_tables.append(
                     Result(
                         dataset,
