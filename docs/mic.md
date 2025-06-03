@@ -64,5 +64,5 @@ mic.save_figures("../figures/")
 ```
 
 ```Python
-mic.save_results("../") # project root as directory path
+mic.save_results(<tables path>, <figures path>, <processed data path>, figureformats=["svg, html"], tableformats=["xlsx", "csv"])
 ```

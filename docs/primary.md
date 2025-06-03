@@ -55,5 +55,5 @@ primary.save_tables("../data/results/")
 # Save all figures
 primary.save_figures("../figures/")
 # Save results (figures and tables)
-primary.save()
+primary.save_results(<tables path>, <figures path>, <processed data path>, figureformats=["svg, html"], tableformats=["xlsx", "csv"])
 ```
