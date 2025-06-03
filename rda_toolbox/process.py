@@ -153,6 +153,12 @@ def background_normalize_zfactor(
     ]
     plate_blank_controls = grp[grp[substance_id] == blanks][f"Raw {measurement}"]
 
+    # Check inputs :)
+    if (len(plate_neg_controls) == 0):
+        raise KeyError("Please check if keyword 'negative_controls' is matching with input table.")
+    elif (len(plate_blank_controls) == 0):
+        raise KeyError("Please check if keyword 'blanks' is matching with input table.")
+
     grp["Z-Factor"] = zfactor(plate_neg_controls, plate_blank_controls)
 
     # Robust Z-Factor using median instead of mean:
@@ -194,6 +200,7 @@ def preprocess(
     #         # measurement_header="Raw Optical Density"
     #     )
     # )
+    df[substance_id] = df[substance_id].astype(str)
     df = (
         df.groupby(norm_by_barcode)[df.columns]
         .apply(
@@ -209,10 +216,10 @@ def preprocess(
         .reset_index(drop=True)
     )
 
-    df[substance_id] = df[substance_id].astype(str)
+    # df[substance_id] = df[substance_id].astype(str)
 
     # detect and report NA values (defined in input, not in raw data)
-    orgs_w_missing_data = df[df[f"Raw {measurement}"].isna()].Organism.unique()
+    orgs_w_missing_data = df[df[f"Raw {measurement}"].isna()]["Organism formatted"].unique()
     if orgs_w_missing_data.size > 0:
         print(
             f"""Processed data:
@@ -743,6 +750,7 @@ def primary_process_inputs(
 
 def primary_results(
     df: pd.DataFrame,
+    substance_id,
     filepath="../data/results/",
     thresholds: list[float] = [50],
 ):
@@ -759,7 +767,7 @@ def primary_results(
         df,
         values=["Relative Optical Density", "Replicate", "Z-Factor"],
         index=[
-            "Internal ID",
+            substance_id,
             "Organism",
             "Concentration",
             "Dataset",
@@ -773,7 +781,7 @@ def primary_results(
 
     for threshold in thresholds:
         pivot_df[f"Relative Growth < {threshold}"] = pivot_df.groupby(
-            ["Internal ID", "Organism", "Dataset"]
+            [substance_id, "Organism", "Dataset"]
         )["Relative Optical Density mean"].transform(lambda x: x < threshold)
 
         for dataset, dataset_grp in pivot_df.groupby(["Dataset"]):
@@ -801,7 +809,7 @@ def primary_results(
             pivot_multiindex_df = pd.pivot_table(
                 dataset_grp,
                 values=[f"Relative Optical Density mean"],
-                index=["Internal ID", "Dataset", "Concentration"],
+                index=[substance_id, "Dataset", "Concentration"],
                 columns="Organism",
             ).reset_index()
             cols = list(pivot_multiindex_df.columns.droplevel())
