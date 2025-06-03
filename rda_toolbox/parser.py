@@ -15,7 +15,7 @@ from os.path import basename  # , exists, isfile, join
 import numpy as np
 import pandas as pd
 
-from .utility import get_rows_cols
+from .utility import get_rows_cols, format_organism_name
 
 # from functools import reduce
 
@@ -341,16 +341,16 @@ def parse_mappingfile(
     return mapping_df
 
 
-def read_inputfile(inputfile_path: str) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+def read_inputfile(inputfile_path: str, substance_id) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame]:
 
     dtypes = { # define type dict to read the correct types from excel
-        'Internal ID': str,
-        'PlateNr 96': int,
+        substance_id: str,
+        'PlateNr 96': str,  # This could be Int, but lab members chose alphabetic platenumbers (in addition)
         'MP Barcode 96': str,
         'Position 96': str,
         'Row 96': str,
         'Col 96': int,
-        'PlateNr 384': int,
+        'PlateNr 384': str,
         'AsT Barcode 384': str,
         'Quadrant': int,
         'Dataset': str,
@@ -365,13 +365,17 @@ def read_inputfile(inputfile_path: str) -> tuple[pd.DataFrame, pd.DataFrame, pd.
         inputfile_path,
         sheet_name="Substances",
         dtype=dtypes,
-    )
+    ).rename(columns={substance_id: "Internal ID"})
+
     organisms = pd.read_excel(inputfile_path, sheet_name="Organisms", dtype=dtypes)
+    organisms["Organism formatted"] = organisms["Organism"].apply(format_organism_name)
     dilutions = pd.read_excel(inputfile_path, sheet_name="Dilutions", dtype=dtypes)
     controls = pd.read_excel(inputfile_path, sheet_name="Controls", dtype=dtypes)
 
-    controls["Row_384"] = controls["Position"].apply(lambda x: str(x[0]))
-    controls["Col_384"] = controls["Position"].apply(lambda x: int(x[1:]))
-    controls.drop(columns="Position", inplace=True)
+    # Allow endings like 'Position 96', 'Position 384' etc.
+    poscol = controls.columns[controls.columns.str.startswith("Position")][0]
+    controls["Row_384"] = controls[poscol].apply(lambda x: str(x[0]))
+    controls["Col_384"] = controls[poscol].apply(lambda x: int(x[1:]))
+    controls.drop(columns=poscol, inplace=True)
 
     return substances, organisms, dilutions, controls
