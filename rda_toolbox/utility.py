@@ -15,6 +15,7 @@ import os
 
 from io import BytesIO
 import xlsxwriter
+import re
 
 
 def get_rows_cols(platetype: int) -> tuple[int, int]:
@@ -525,13 +526,16 @@ def _save_tables(
     for result in resulttables:  # cached property of subclasses
         filedir = os.path.join(resultpath, result.dataset)
         pathlib.Path(filedir).mkdir(parents=True, exist_ok=True)
+        multiindex = False
+        if result.table.columns.nlevels > 1:  # Check whether multiple levels are on the columns
+            multiindex = True
         if "xlsx" or "excel" in fileformats:
             result.table.to_excel(
-                os.path.join(filedir, f"{result.file_basename}.xlsx"), index=False
+                os.path.join(filedir, f"{result.file_basename}.xlsx"), index=multiindex
             )
         if "csv" in fileformats:
             result.table.to_csv(
-                os.path.join(filedir, f"{result.file_basename}.csv"), index=False
+                os.path.join(filedir, f"{result.file_basename}.csv"), index=multiindex
             )
 
 
@@ -598,3 +602,15 @@ def check_activity_conditions(
     return any(
             check_conditions
             )  # Any because we want the values for other organisms if sample is active in one
+
+
+def format_organism_name(raw_organism_name: str) -> str:
+    """
+    Create internal, formatted orgnames but keep external for plots...
+
+    """
+    # I dont know how many spaces people introduce...
+    normalized_spaces = re.sub(r'\s+', ' ', raw_organism_name).strip()
+    # I dont know which organism names people think of... (MRSA ST033793 vs. Acinetobacter Baumannii ATCC 17978)
+    # Or which other evil things people come up with
+    return normalized_spaces.lower()
