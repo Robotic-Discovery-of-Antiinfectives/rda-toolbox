@@ -759,6 +759,7 @@ def measurement_vs_bscore_scatter(
     bscore_header: str = "b_scores mean",
     bscore_title: str = "B-Score",
     color_header: str = "Organism",
+    show_area: bool = True,
     measurement_threshold: float = 50,
     b_score_threshold: float = -3,
 ):
@@ -788,11 +789,14 @@ def measurement_vs_bscore_scatter(
     )
 
     rect = base.mark_rect(color="blue").encode(
-        y=f"min({measurement_header})",
-        y2="Growth Threshold",
-        x="B-Score Threshold",
-        x2=f"min({bscore_header})",
+        y=f"min({measurement_header}):Q",
+        y2="Growth Threshold:Q",
+        x="B-Score Threshold:Q",
+        x2=f"min({bscore_header}):Q",
         opacity=alt.value(0.2),
     )
 
-    return alt.layer(chart, growth_threshold_rule, bscore_threshold_rule, rect)
+    if show_area:
+        return alt.layer(chart, growth_threshold_rule, bscore_threshold_rule, rect)
+    else:
+        return alt.layer(chart, growth_threshold_rule, bscore_threshold_rule)
