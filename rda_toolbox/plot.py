@@ -577,7 +577,7 @@ def lineplots_facet(
     color = alt.condition(
         # alt.datum.Concentration
         alt.datum.max_conc_below_threshold,
-        alt.Color("External ID:N"),
+        alt.Color(f"{by_id}:N"),
         alt.value("lightgray"),
     )
     for organism, org_data in df.groupby(["Organism"]):
@@ -660,7 +660,7 @@ def mic_hitstogram(
         .mark_bar()
         .encode(
             x=alt.X(f"{mic_col}:O"),
-            y=alt.Y("count(External ID):Q"),
+            y=alt.Y("count(Internal ID):Q"),
             xOffset="Organism:N",
             color="Organism:N",
         )
@@ -670,8 +670,8 @@ def mic_hitstogram(
         .mark_text(dx=0, dy=-5)
         .encode(
             x=alt.X(f"{mic_col}:O"),
-            y=alt.Y("count(External ID):Q"),
-            text=alt.Text("count(External ID):Q"),
+            y=alt.Y("count(Internal ID):Q"),
+            text=alt.Text("count(Internal ID):Q"),
             xOffset="Organism:N",
             color="Organism:N",
         )
