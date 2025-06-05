@@ -762,6 +762,7 @@ class MIC(Experiment):  # Minimum Inhibitory Concentration
             # if precipitation_rawfilepath
             # else None
         )
+        self.precip_conc_multiplicator = precip_conc_multiplicator
         self.rawdata = (  # Overwrite rawdata if precipitation data is available
             # self.rawdata
             # if self.precipitation is None
@@ -812,26 +813,34 @@ class MIC(Experiment):  # Minimum Inhibitory Concentration
                 .reset_index(drop=True)
             )
         )
-        self.substances_minimum_precipitation_conc = (  # minimum precipitation conc = MPC
-            None
-            if (self.precipitation.results.empty)
-            and (not self.substances_precipitation)
-            else (
-                self.substances_precipitation.groupby(
+        def get_min_precip_conc_df(self):
+            if (self.precipitation.results.empty) and (not self.substances_precipitation):
+                return None
+            else:
+                precip_grps = []
+                # precip_df = self.substances_precipitation
+                for (int_id, ast_barcode), grp in self.substances_precipitation.groupby(
                     ["Internal ID", "AsT Barcode 384"]
-                )
-                .apply(
-                    lambda x: get_minimum_precipitation_conc(
-                        x, precip_conc_multiplicator=precip_conc_multiplicator
-                    ),
-                    include_groups=False,
-                )
-                .reset_index()  # names=["Minimum Precipitation Conc."]
-                .drop(columns="AsT Barcode 384")
-            )
-        )
+                    ):
+                    grp = grp.sort_values("Concentration")
+                    min_precip_conc = None
+                    if grp.Precipitated.any():
+                        min_precip_conc = grp["Concentration"][grp["Precipitated"].idxmax()] * self.precip_conc_multiplicator
+                    grp["Minimum Precipitation Concentration"] = min_precip_conc
+                    precip_grps.append(grp)
+                precip_df = pd.concat(precip_grps)
+                precip_df = precip_df[["Internal ID", "Minimum Precipitation Concentration"]]
+                return precip_df
+        self.substances_minimum_precipitation_conc = get_min_precip_conc_df(self)
         self._exclude_negative_zfactor = exclude_negative_zfactors
-        self.mic_df = self.get_mic_df(self.processed.copy())
+        self.mic_df = self.get_mic_df(
+                # self.processed.copy()
+            df = self.processed[
+                (self.processed["Dataset"] != "Negative Control") & (self.processed["Dataset"] != "Blank")
+            ].dropna(subset=["Concentration"]).copy()
+        ).reset_index(drop=True)
+
+
 
     @property
     def _mapping_dict(self):
@@ -870,7 +879,9 @@ class MIC(Experiment):  # Minimum Inhibitory Concentration
         """
 
         # Sorting of organisms via Rack is **very** important, otherwise data gets attributed to wrong organisms
-        organisms = list(self._organisms.sort_values(by="Rack")["Organism formatted"])
+        organisms = list(self._organisms.sort_values(by="Rack")["Organism"])
+        formatted_organisms = list(self._organisms.sort_values(by="Rack")["Organism formatted"])
+
 
         ast_platemapping, _ = read_platemapping(
             self._mp_ast_mapping_filepath,
@@ -958,7 +969,8 @@ class MIC(Experiment):  # Minimum Inhibitory Concentration
 
                     ast_plate["Replicate"] = replicate + 1
                     # Add the scientific Organism name
-                    ast_plate["Organism formatted"] = organism
+                    ast_plate["Organism formatted"] = formatted_organisms[org_i]
+                    ast_plate["Organism"] = organism
                     acd_dfs_list.append(ast_plate.copy())
                     # Add concentrations:
         acd_single_concentrations_df = pd.concat(acd_dfs_list)
@@ -1089,17 +1101,15 @@ class MIC(Experiment):  # Minimum Inhibitory Concentration
         return result_figures
 
     def get_mic_df(self, df):
-        df = df[
-            (df["Dataset"] != "Negative Control") & (df["Dataset"] != "Blank")
-        ].dropna(subset=["Concentration"])
 
         pivot_df = pd.pivot_table(
             df,
-            values=["Relative Optical Density", "Replicate", "Z-Factor"],
+            values=["Relative Optical Density", "Replicate", "Z-Factor", "Robust Z-Factor"],
             index=[
                 "Internal ID",
-                "External ID",
+                # "External ID",
                 "Organism formatted",
+                "Organism",
                 "Concentration",
                 "Dataset",
             ],
@@ -1109,7 +1119,12 @@ class MIC(Experiment):  # Minimum Inhibitory Concentration
                 "Z-Factor": [
                     "mean",
                     "std",
-                ],  # does this make sense? with std its usable.
+                ],
+                "Robust Z-Factor": [
+                    "mean",
+                    "std"
+                ]
+                ,  # does this make sense? with std its usable.
                 # "Z-Factor": ["std"],
             },
         ).reset_index()
@@ -1118,9 +1133,9 @@ class MIC(Experiment):  # Minimum Inhibitory Concentration
 
         mic_records = []
         for group_names, grp in pivot_df.groupby(
-            ["Internal ID", "External ID", "Organism formatted", "Dataset"]
+            ["Internal ID", "Organism formatted", "Dataset"]
         ):
-            internal_id, external_id, organism, dataset = group_names
+            internal_id, organism_formatted, dataset = group_names
             # Sort by concentration just to be sure:
             grp = grp[
                 [
@@ -1128,17 +1143,20 @@ class MIC(Experiment):  # Minimum Inhibitory Concentration
                     "Relative Optical Density mean",
                     "Z-Factor mean",
                     "Z-Factor std",
+                    "Robust Z-Factor mean",
+                    "Robust Z-Factor std",
                 ]
             ].sort_values(by=["Concentration"])
 
             # Get rows where the OD is below the given threshold:
             record = {
                 "Internal ID": internal_id,
-                "External ID": external_id,
-                "Organism formatted": organism,
+                "Organism formatted": organism_formatted,
                 "Dataset": dataset,
                 "Z-Factor mean": list(grp["Z-Factor mean"])[0],
                 "Z-Factor std": list(grp["Z-Factor std"])[0],
+                "Robust Z-Factor mean": list(grp["Robust Z-Factor mean"])[0],
+                "Robust Z-Factor std": list(grp["Robust Z-Factor std"])[0],
             }
 
             for threshold in self.thresholds:
@@ -1160,7 +1178,59 @@ class MIC(Experiment):  # Minimum Inhibitory Concentration
             mic_records.append(record)
         # Drop entries where no MIC could be determined
         mic_df = pd.DataFrame.from_records(mic_records)
+        # Merge inconsistent (but maybe necessary) columns again
+        mic_df = pd.merge(mic_df, df[["Internal ID", "External ID"]], on=["Internal ID"])
+        mic_df = pd.merge(mic_df, self._organisms[["Organism", "Organism formatted"]], on=["Organism formatted"])
+        mic_df = mic_df.drop_duplicates()
         return mic_df
+
+    def get_ref_mics(self, df):
+        only_references = df[df["Dataset"] == "Reference"]
+        mic_records = []
+        for group_names, grp in only_references.groupby(
+            [
+                "Internal ID",
+                "Organism formatted",
+                "Dataset",
+                "AcD Barcode 384",
+            ]
+        ):
+            (
+                internal_id,
+                organism_formatted,
+                dataset,
+                acd_barcode,
+            ) = group_names
+            grp = grp.copy().sort_values(by=["Concentration"])
+            record = {
+                "Internal ID": internal_id,
+                "Organism formatted": organism_formatted,
+                "Dataset": dataset,
+                "AcD Barcode 384": acd_barcode,
+                "Z-Factor": list(grp["Z-Factor"])[0],
+            }
+            for threshold in self.thresholds:
+                values_below_threshold = grp[
+                    grp["Relative Optical Density"] < threshold
+                ]
+                # thx to jonathan - check if the OD at maximum concentration is below threshold (instead of any concentration)
+                max_conc_below_threshold = list(
+                    grp[grp["Concentration"] == max(grp["Concentration"])][
+                        "Relative Optical Density"
+                    ]
+                    < threshold
+                )[0]
+                if not max_conc_below_threshold:
+                    mic = None
+                else:
+                    mic = values_below_threshold.iloc[0]["Concentration"]
+                record[f"MIC{threshold} in µM"] = mic
+            mic_records.append(record)
+        reference_mics = pd.DataFrame.from_records(mic_records)
+        reference_mics = pd.merge(reference_mics, only_references[["Internal ID", "External ID"]], on=["Internal ID"])
+        reference_mics = pd.merge(reference_mics, self._organisms[["Organism", "Organism formatted"]], on=["Organism formatted"])
+        reference_mics = reference_mics.drop_duplicates()
+        return reference_mics
 
     @cached_property
     def _resulttables(self) -> list[Result]:
@@ -1171,59 +1241,11 @@ class MIC(Experiment):  # Minimum Inhibitory Concentration
         result_tables = []
         df = self.processed.copy()
 
-        def get_ref_mics(df):
-            only_references = df[df["Dataset"] == "Reference"]
-            mic_records = []
-            for group_names, grp in only_references.groupby(
-                [
-                    "Internal ID",
-                    "External ID",
-                    "Organism formatted",
-                    "Organism",
-                    "Dataset",
-                    "AcD Barcode 384",
-                ]
-            ):
-                (
-                    internal_id,
-                    external_id,
-                    organism_formatted,
-                    organism,
-                    dataset,
-                    acd_barcode,
-                ) = group_names
-                grp = grp.copy().sort_values(by=["Concentration"])
-                record = {
-                    "Internal ID": internal_id,
-                    "External ID": external_id,
-                    "Organism formatted": organism_formatted,
-                    "Organism": organism,
-                    "Dataset": dataset,
-                    "AcD Barcode 384": acd_barcode,
-                    "Z-Factor": list(grp["Z-Factor"])[0],
-                }
-                for threshold in self.thresholds:
-                    values_below_threshold = grp[
-                        grp["Relative Optical Density"] < threshold
-                    ]
-                    # thx to jonathan - check if the OD at maximum concentration is below threshold (instead of any concentration)
-                    max_conc_below_threshold = list(
-                        grp[grp["Concentration"] == max(grp["Concentration"])][
-                            "Relative Optical Density"
-                        ]
-                        < threshold
-                    )[0]
-                    if not max_conc_below_threshold:
-                        mic = None
-                    else:
-                        mic = values_below_threshold.iloc[0]["Concentration"]
-                    record[f"MIC{threshold} in µM"] = mic
-                mic_records.append(record)
-            reference_mics = pd.DataFrame.from_records(mic_records)
-            return reference_mics
 
         # mic_df = self.get_mic_df(df)
-        references_mic_results = get_ref_mics(df)
+        references_mic_results = self.get_mic_df(
+            self.processed[self.processed["Dataset"] == "Reference"].copy()
+        ).reset_index(drop=True)
 
         result_tables.append(
             Result(
@@ -1233,24 +1255,25 @@ class MIC(Experiment):  # Minimum Inhibitory Concentration
             )
         )
 
+        mic_df = self.mic_df
         # If precipitation has been done, merge MPC results on long mic_df
         if not self.precipitation.results.empty:
-            mic_df = pd.merge(self.mic_df, self.substances_minimum_precipitation_conc)
+            mic_df = pd.merge(self.mic_df, self.substances_minimum_precipitation_conc, on="Internal ID", how="left")
 
         result_tables.append(
             Result("All", "MIC_Results_AllDatasets_longformat", table=self.mic_df)
         )
 
-        for dataset, dataset_grp in self.mic_df.groupby("Dataset"):
+        for dataset, dataset_grp in mic_df.groupby("Dataset"):
+            print(f"Preparing tables for dataset: {dataset}")
             pivot_multiindex_df = pd.pivot_table(
                 dataset_grp,
                 values=[f"MIC{threshold} in µM" for threshold in self.thresholds]
                 + ["Z-Factor mean", "Z-Factor std"],
-                index=["Internal ID", "External ID", "Dataset", "Organism"],
+                index=["Internal ID", "Dataset", "Organism"],
                 columns="Organism formatted",
             ).reset_index()
             # self.pivot_multiindex_df = pivot_multiindex_df
-            # print(pivot_multiindex_df)
 
             for threshold in self.thresholds:
                 # print(pivot_multiindex_df.columns)
@@ -1258,31 +1281,34 @@ class MIC(Experiment):  # Minimum Inhibitory Concentration
                 if pivot_multiindex_df.empty:
                     continue
                 organisms_thresholded_mics = pivot_multiindex_df[
-                    ["Internal ID", "External ID", f"MIC{threshold} in µM"]
+                    ["Internal ID", f"MIC{threshold} in µM"]
                 ]
                 cols = list(organisms_thresholded_mics.columns.droplevel())
                 cols[0] = "Internal ID"
-                cols[1] = "External ID"
                 organisms_thresholded_mics.columns = cols
                 organisms_thresholded_mics = organisms_thresholded_mics.sort_values(
-                    by=list(organisms_thresholded_mics.columns)[2:],
+                    by=list(organisms_thresholded_mics.columns)[1:],
                     na_position="last",
                 )
 
                 # Fill with nan if not available
                 organisms_thresholded_mics = organisms_thresholded_mics.astype(str)
+                organisms_thresholded_mics = pd.merge(organisms_thresholded_mics, self.mic_df[["Internal ID", "External ID"]], on=["Internal ID"], how="left")
                 # organisms_thresholded_mics.fillna("NA", inplace=True)
 
                 if not self.precipitation.results.empty:
                     organisms_thresholded_mics = pd.merge(
                         organisms_thresholded_mics,
                         self.substances_minimum_precipitation_conc,
+                        how="left"
                     )
+                organisms_thresholded_mics = organisms_thresholded_mics.reset_index(drop=True)
+                organisms_thresholded_mics = organisms_thresholded_mics.drop_duplicates()
                 result_tables.append(
                     Result(
                         dataset,
-                        f"{dataset}_MIC{round(threshold)}_results",
-                        table=organisms_thresholded_mics,
+                        f"{dataset}_MIC{int(round(threshold))}_results",
+                        table=organisms_thresholded_mics.reset_index(drop=True),
                     )
                 )
 
