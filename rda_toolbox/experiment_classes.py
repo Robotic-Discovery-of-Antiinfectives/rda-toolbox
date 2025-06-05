@@ -1184,53 +1184,6 @@ class MIC(Experiment):  # Minimum Inhibitory Concentration
         mic_df = mic_df.drop_duplicates()
         return mic_df
 
-    def get_ref_mics(self, df):
-        only_references = df[df["Dataset"] == "Reference"]
-        mic_records = []
-        for group_names, grp in only_references.groupby(
-            [
-                "Internal ID",
-                "Organism formatted",
-                "Dataset",
-                "AcD Barcode 384",
-            ]
-        ):
-            (
-                internal_id,
-                organism_formatted,
-                dataset,
-                acd_barcode,
-            ) = group_names
-            grp = grp.copy().sort_values(by=["Concentration"])
-            record = {
-                "Internal ID": internal_id,
-                "Organism formatted": organism_formatted,
-                "Dataset": dataset,
-                "AcD Barcode 384": acd_barcode,
-                "Z-Factor": list(grp["Z-Factor"])[0],
-            }
-            for threshold in self.thresholds:
-                values_below_threshold = grp[
-                    grp["Relative Optical Density"] < threshold
-                ]
-                # thx to jonathan - check if the OD at maximum concentration is below threshold (instead of any concentration)
-                max_conc_below_threshold = list(
-                    grp[grp["Concentration"] == max(grp["Concentration"])][
-                        "Relative Optical Density"
-                    ]
-                    < threshold
-                )[0]
-                if not max_conc_below_threshold:
-                    mic = None
-                else:
-                    mic = values_below_threshold.iloc[0]["Concentration"]
-                record[f"MIC{threshold} in µM"] = mic
-            mic_records.append(record)
-        reference_mics = pd.DataFrame.from_records(mic_records)
-        reference_mics = pd.merge(reference_mics, only_references[["Internal ID", "External ID"]], on=["Internal ID"])
-        reference_mics = pd.merge(reference_mics, self._organisms[["Organism", "Organism formatted"]], on=["Organism formatted"])
-        reference_mics = reference_mics.drop_duplicates()
-        return reference_mics
 
     @cached_property
     def _resulttables(self) -> list[Result]:
