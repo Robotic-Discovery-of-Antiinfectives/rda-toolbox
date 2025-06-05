@@ -510,6 +510,7 @@ def get_minimum_precipitation_conc(
 ) -> float | None:
     grp = grp.sort_values("Concentration")
     if grp["Precipitated"].any():
+        # Get the first (minimum) concentration at which precipitation happened:
         min_precip_conc = grp["Concentration"][grp["Precipitated"].idxmax()]
         return min_precip_conc * precip_conc_multiplicator
     else:
