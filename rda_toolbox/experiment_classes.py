@@ -1223,9 +1223,10 @@ class MIC(Experiment):  # Minimum Inhibitory Concentration
                 dataset_grp,
                 values=[f"MIC{threshold} in µM" for threshold in self.thresholds]
                 + ["Z-Factor mean", "Z-Factor std"],
-                index=["Internal ID", "Dataset", "Organism"],
-                columns="Organism formatted",
+                index=["Internal ID", "Dataset"],
+                columns="Organism",
             ).reset_index()
+            # print(pivot_multiindex_df)
             # self.pivot_multiindex_df = pivot_multiindex_df
 
             for threshold in self.thresholds:
@@ -1245,6 +1246,7 @@ class MIC(Experiment):  # Minimum Inhibitory Concentration
                 )
 
                 # Fill with nan if not available
+                organisms_thresholded_mics = organisms_thresholded_mics.round(2)
                 organisms_thresholded_mics = organisms_thresholded_mics.astype(str)
                 organisms_thresholded_mics = pd.merge(organisms_thresholded_mics, self.mic_df[["Internal ID", "External ID"]], on=["Internal ID"], how="left")
                 # organisms_thresholded_mics.fillna("NA", inplace=True)
@@ -1261,7 +1263,7 @@ class MIC(Experiment):  # Minimum Inhibitory Concentration
                     Result(
                         dataset,
                         f"{dataset}_MIC{int(round(threshold))}_results",
-                        table=organisms_thresholded_mics.reset_index(drop=True),
+                        table=organisms_thresholded_mics.reset_index(drop=True)
                     )
                 )
 
