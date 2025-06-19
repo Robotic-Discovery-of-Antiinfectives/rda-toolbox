@@ -615,3 +615,25 @@ def format_organism_name(raw_organism_name: str) -> str:
     # I dont know which organism names people think of... (MRSA ST033793 vs. Acinetobacter Baumannii ATCC 17978)
     # Or which other evil things people come up with
     return normalized_spaces.lower()
+
+
+def read_sdf_withproperties(sdf_filepath: str) -> pd.DataFrame:
+    """
+    Reads a SDF file and returns a DataFrame containing the molecules as rdkit molobjects
+    as well as all the encoded properties in the SDF block.
+    """
+    suppl = Chem.SDMolSupplier(sdf_filepath)
+    mols = []
+    nonmol_counter = 0
+    for mol in suppl:
+        if not mol:
+            nonmol_counter += 1
+            continue
+        mol_props = {"mol": mol}
+        propnames = mol.GetPropNames()
+        for prop in propnames:
+            mol_props[prop] = mol.GetProp(prop)
+        mols.append(mol_props)
+    if nonmol_counter > 0:
+        print(f"Ignored molecules: {nonmol_counter}")
+    return pd.DataFrame(mols)
