@@ -13,6 +13,7 @@ primary = rda.PrimaryScreen(
     "../data/input/AmA_AsT_AcD_20241204.txt",  # Mapping file
     map_rowname="Row 96",
     map_colname="Col 96",
+    measurement_label="Raw Optical Density",
     # Folder where the raw readerfiles for precipitation test are located
     precipitation_rawfilepath = "../data/raw/Precipitation_measurements/"
 )
@@ -57,3 +58,6 @@ primary.save_figures("../figures/")
 # Save results (figures and tables)
 primary.save_results(<tables path>, <figures path>, <processed data path>, figureformats=["svg, html"], tableformats=["xlsx", "csv"])
 ```
+
+# Primary Screen Results
+

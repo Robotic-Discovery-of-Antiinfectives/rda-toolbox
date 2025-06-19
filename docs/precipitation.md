@@ -46,3 +46,28 @@ mic = rda.MIC(
     background_locations={}
 )
 ```
+
+
+# Precipitation Results
+The precipitation results are visible in the end-results tables as well as in the `.../figures/QualityControl` folder.
+
+![alt text](./assets/Precipitation_Heatmap.svg)
+
+A heatmap of each precipitation test plate is written.
+On the top left corner the calculated "Limit of Quantification" ("Nachweisgrenze") is shown.
+
+## Limit of Quantification
+> The limit of quantification (LoQ, or LOQ) is the lowest value of a signal (or concentration, activity, response...) that can be quantified with acceptable precision and accuracy [[1](https://en.wikipedia.org/wiki/Detection_limit)].
+
+Some substances may precipitate at certain concentrations.
+This may interfere with our method of detecting activity.
+
+We calculate the LoQ like this:
+
+$$
+LoQ = y_B + (10 * s_B)
+$$
+- $y_B$: Mean of the background
+- $s_B$: Standarddeviation of the background
+
+

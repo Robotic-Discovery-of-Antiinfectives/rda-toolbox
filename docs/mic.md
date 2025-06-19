@@ -1,7 +1,7 @@
 # Minimal Inhibitory Concentration (MIC) Assay
 
 
-## Read the inputs, initialize the assay class
+### Read the inputs, initialize the assay class
 
 ```Python
 import rda_toolbox as rda
@@ -19,8 +19,23 @@ mic = rda.MIC(
 )
 ```
 
+### Save the results
 
-## View in-between results (e.g. in a notebook)
+```Python
+mic.save_results(<tables path>, <figures path>, <processed data path>, figureformats=["svg, html"], tableformats=["xlsx", "csv"])
+```
+
+If everything went well you can stop now.
+
+If errors occured you may inspect in-between results and debug from there.
+
+(**Check your inputs!**)
+
+---
+
+## In-between inspection:
+
+### View in-between results (e.g. in a notebook)
 
 Its possible to inspect the assay object:
 
@@ -53,7 +68,7 @@ mic.results
 mic.plateheatmap
 ```
 
-## Save the results
+### Save the results separately
 
 ```Python
 mic.save_tables("../data/results/")
@@ -61,8 +76,4 @@ mic.save_tables("../data/results/")
 
 ```Python
 mic.save_figures("../figures/")
-```
-
-```Python
-mic.save_results(<tables path>, <figures path>, <processed data path>, figureformats=["svg, html"], tableformats=["xlsx", "csv"])
 ```
