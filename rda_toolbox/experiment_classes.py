@@ -1127,6 +1127,8 @@ class MIC(Experiment):  # Minimum Inhibitory Concentration
                 ,  # does this make sense? with std its usable.
                 # "Z-Factor": ["std"],
             },
+            # margins=True
+            fill_value=0 # This might result in confusion, if there are no replicates (1)
         ).reset_index()
 
         pivot_df.columns = [" ".join(x).strip() for x in pivot_df.columns.ravel()]

@@ -586,7 +586,7 @@ def lineplots_facet(
             x=alt.X(
                 "Concentration:O",
                 title="Concentration in µM",
-                axis=alt.Axis(labelAngle=-45),
+                axis=alt.Axis(labelAngle=-45, format=".2e", formatType="number"),
             ),
             y=alt.Y(
                 "Mean Relative Optical Density:Q",
