@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "rda-toolbox"
-version = "0.1.12"
+version = "0.1.13"
 description = ""
 authors = ["timoleistner <leistner.timo@googlemail.com>"]
 readme = "README.md"
