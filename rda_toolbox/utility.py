@@ -302,7 +302,7 @@ def write_excel_MolImages(df: pd.DataFrame, filename: str, molcol_header: str):
             f"A{i+1}", "img.png", {"image_data": imgbuf, "x_scale": 0.5, "y_scale": 0.5}
         )
 
-    df.drop(columns=["img_buf"]).to_excel(writer, startcol=1, index=False)
+    df.drop(columns=["img_buf", molcol_header]).to_excel(writer, startcol=1, index=False)
     workbook.close()
 
 
