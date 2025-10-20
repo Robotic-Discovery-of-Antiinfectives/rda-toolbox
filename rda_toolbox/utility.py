@@ -17,6 +17,8 @@ from io import BytesIO
 import xlsxwriter
 import re
 
+import altair as alt
+
 
 def get_rows_cols(platetype: int) -> tuple[int, int]:
     """
@@ -637,3 +639,102 @@ def read_sdf_withproperties(sdf_filepath: str) -> pd.DataFrame:
     if nonmol_counter > 0:
         print(f"Ignored molecules: {nonmol_counter}")
     return pd.DataFrame(mols)
+
+
+
+def smiles_grid_altair(
+        df: pd.DataFrame,
+        smiles_col: str = "smiles",
+        n_cols: int = 6,
+        img_size: int = 128,
+        tooltip_cols: list[str] | None = None,
+        drop_invalid: bool = True,
+        background: str | None = '#ffffff',
+        gridtitle: str | None = "Molecule Grid",
+        ):
+    """
+    Render a grid of molecule images from a DataFrame using Altair.
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        Must contain a SMILES column (default 'smiles'). Other columns are arbitrary.
+    smiles_col : str
+        Column name with SMILES strings.
+    n_cols : int
+        Number of grid columns.
+    img_size : int
+        Size (pixels) of each PNG image (square).
+    tooltip_cols : list[str] | None
+        If provided, use only these columns as tooltips. Otherwise include all non-internal columns.
+    drop_invalid : bool
+        If True, rows with invalid/unparsable SMILES are removed. If False, they'll be kept with empty images.
+    background : str | None
+        Optional CSS color (e.g., '#ffffff') for chart background.
+
+    Returns
+    -------
+    alt.Chart
+    """
+
+    if smiles_col not in df.columns:
+        raise ValueError(f"Column '{smiles_col}' not found in DataFrame.")
+
+    data = df.copy()
+    # --- helper: SMILES -> data URL (PNG in-memory) ---
+    def _smiles_to_data_url(smi: str) -> str | None:
+        try:
+            mol = Chem.MolFromSmiles(str(smi))
+            if mol is None:
+                return None
+            # RDKit renders to PIL Image; save to BytesIO as PNG
+            img = Draw.MolToImage(mol)
+            buf = BytesIO()
+            img.save(buf, format="png")
+            encoded = base64.b64encode(buf.getvalue()).decode()
+            return f"data:image/png;base64,{encoded}"
+        except Exception:
+            print("Exception: ", smi)
+            return None
+
+    # Create image column
+    data["_image_url"] = data[smiles_col].apply(_smiles_to_data_url)
+
+    # Handle invalids
+    if drop_invalid:
+        data = data.loc[data["_image_url"].notna()].copy()
+
+    if len(data) == 0:
+        raise ValueError("No valid molecules to render (all SMILES failed to parse?).")
+
+    # Grid coordinates
+    data = data.reset_index(drop=True)
+    data["_idx"] = np.arange(len(data))
+    data["_col"] = (data["_idx"] % n_cols).astype(int)
+    data["_row"] = (data["_idx"] // n_cols).astype(int)
+
+    # Tooltips: include all user columns by default (exclude internal helpers)
+    internal_cols = {"_image_url", "_idx", "_col", "_row", "smiles"}
+    if tooltip_cols is None:
+        tooltip_cols = [c for c in data.columns if c not in internal_cols]
+
+    # Build chart
+    chart = (
+            alt.Chart(data)
+            .mark_image(width=img_size, height=img_size)
+            .encode(
+                x=alt.X("_col:O", axis=None),
+                # reverse rows so row 0 is at the top
+                y=alt.Y("_row:O", axis=None, sort="ascending"),
+                url="_image_url:N",
+                tooltip=tooltip_cols,
+                )
+            .properties(
+                width=n_cols * img_size,
+                height=(int(np.ceil(len(data) / n_cols))) * img_size,
+                background=background,
+                title=gridtitle,
+                )
+            )
+
+    return chart
