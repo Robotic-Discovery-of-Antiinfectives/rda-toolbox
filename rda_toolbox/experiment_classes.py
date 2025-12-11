@@ -5,6 +5,8 @@ import altair as alt
 from functools import cached_property
 from dataclasses import dataclass
 import numpy as np
+import logging
+from typing import Optional, List, Dict
 
 import os
 import pathlib
@@ -24,6 +26,7 @@ from .utility import (
     mic_assaytransfer_mapping,
     get_minimum_precipitation_conc,
     check_activity_conditions,
+    split_position
 )
 from .parser import (
     parse_readerfiles,
@@ -40,6 +43,7 @@ from .plot import (
     measurement_vs_bscore_scatter,
 )
 
+logger = logging.getLogger(__name__)
 
 class Experiment:
     """
@@ -61,13 +65,21 @@ class Experiment:
         Save all plots and tables to resultdir
     """
 
-    def __init__(self, rawfiles_folderpath: str | None, plate_type: int):
+    def __init__(self, rawfiles_folderpath: str, plate_type: int):
         self._plate_type = plate_type
         self._rows, self._columns = get_rows_cols(plate_type)
         self._rawfiles_folderpath = rawfiles_folderpath
-        self.rawdata = parse_readerfiles(
+        self.rawdata, self.metadata = parse_readerfiles(
             rawfiles_folderpath
-        )  # Get rawdata, this will later be overwritting by adding precipitation, if available
+        )  # Get rawdata, this will later be overwritten by adding precipitation, if available
+
+    # def save_results(
+    #     self,
+    #     save_path: str,
+    #     figureformats: list[str] = ["svg", "html"],
+    #     tableformats: list[str] = ["xlsx", "csv"]
+    # ):
+        # pathlib.Path(save_path)
 
 
 # def save(self, resultpath: str):
@@ -136,7 +148,6 @@ class Precipitation(Experiment):
                 self.rawdata, self.background_locations, how="outer"
             ).fillna({"Layout": "Substance"})
 
-        # if self.rawdata_w_layout[]
         self._background_median = self.rawdata_w_layout[
             self.rawdata_w_layout["Layout"] == "Background"
         ][self._measurement_label].median()
@@ -186,18 +197,6 @@ class Precipitation(Experiment):
                 lambda x: x if x > self.limit_of_quantification else None
             )
         )
-        # if not self._rawfiles_folderpath:
-        #     # return early with placeholder results
-        #     return pd.DataFrame({
-        #         'Row_384': [],
-        #         'Col_384': [],
-        #         'Raw Optical Density': [],
-        #         'AcD Barcode 384': [],
-        #         'Layout': [],
-        #         'Limit of Quantification': [],
-        #         'Precipitated': [],
-        #         f'Precipitated at {self._measurement_label}': []
-        #         })
         return self.rawdata_w_layout
 
     # let it have its own heatmap function for now:
@@ -270,13 +269,13 @@ class PrimaryScreen(Experiment):
         negative_controls: str = "Bacteria + Medium",
         blanks: str = "Medium",
         norm_by_barcode: str = "AcD Barcode 384",
-        thresholds: list[float] = [50.0],
+        ast_barcode_header: str = "AsT Barcode 384",
+        thresholds: list[float] | None = None,
         b_score_threshold: float = -3.0,
         precipitation_rawfilepath: str | None = None,
-        background_locations: pd.DataFrame | list[str] = [
-            f"{row}24" for row in string.ascii_uppercase[:16]
-        ],
+        background_locations: pd.DataFrame | list[str] | None = None,
         precip_exclude_outlier: bool = False,
+        needs_mapping: bool = True,
     ):
         super().__init__(rawfiles_folderpath, plate_type)
         self._measurement_label = measurement_label
@@ -290,19 +289,33 @@ class PrimaryScreen(Experiment):
             rowname=map_rowname,
             colname=map_colname,
             q_name=q_name,
-        )
+        ) if needs_mapping else split_position(
+            self._substances_unmapped,
+            position="MP Position 384",
+            row="Row_384",
+            col="Col_384"
+            )
+
         self._mapping_df = parse_mappingfile(
             mappingfile_path,
-            motherplate_column="AsT Barcode 384",
+            motherplate_column=ast_barcode_header,
             childplate_column="AcD Barcode 384",
         )
-        self._mapping_dict = get_mapping_dict(self._mapping_df)
+        self._mapping_dict = get_mapping_dict(self._mapping_df, mother_column=ast_barcode_header)
         # self._substance_id = substance_id
         self._negative_controls = negative_controls
         self._blanks = blanks
         self._norm_by_barcode = norm_by_barcode
+        self._ast_barcode_header = ast_barcode_header
+        if thresholds is None:
+            thresholds = [50.0]
         self.thresholds = thresholds
         self.b_score_threshold = b_score_threshold
+        if background_locations is None:
+            background_locations = [
+                f"{row}24" for row in string.ascii_uppercase[:16]
+            ]
+
         self.precipitation = (
             Precipitation(
                 precipitation_rawfilepath,
@@ -333,7 +346,7 @@ class PrimaryScreen(Experiment):
                     self._processed_only_substances["Dataset"] != "Negative Control"
                 ]
                 .drop_duplicates(
-                    ["Internal ID", "AsT Barcode 384", "Row_384", "Col_384"]
+                    ["Internal ID", self._ast_barcode_header, "Row_384", "Col_384"]
                 )
                 .loc[
                     :,
@@ -368,9 +381,6 @@ class PrimaryScreen(Experiment):
         #         "Input table incomplete, contains NA (missing) values."
         #     )
         # # Check if there are duplicates in the internal IDs (apart from references)
-        # if any(substances[substances["Dataset"] != "Reference"]["Internal ID"].duplicated()):
-        #     raise ValueError("Duplicate Internal IDs.")
-        pass
 
     @cached_property
     def mapped_input_df(self):
@@ -381,36 +391,38 @@ class PrimaryScreen(Experiment):
         """
         control_wbarcodes = []
         # multiply controls with number of AsT plates to later merge them with substances df
-        for origin_barcode in list(self.substances["AsT Barcode 384"].unique()):
+        for origin_barcode in list(self.substances[self._ast_barcode_header].unique()):
             controls_subdf = self._controls.copy()
-            controls_subdf["AsT Barcode 384"] = origin_barcode
+            controls_subdf[self._ast_barcode_header] = origin_barcode
             control_wbarcodes.append(controls_subdf)
         controls_n_barcodes = pd.concat(control_wbarcodes)
 
         ast_plate_df = pd.merge(
-            pd.concat([self.substances, controls_n_barcodes]),
-            self._dilutions,
+            pd.concat([self.substances, controls_n_barcodes]), # concatenate substances and controls
+            self._dilutions,  # merge with dilutions on column "Dataset"
             how="outer",
+            on="Dataset",  # Explicitly define on which column to merge
         )
 
-        mapped_organisms = pd.merge(self._mapping_df, self._organisms)
+        mapped_organisms = pd.merge(self._mapping_df, self._organisms, on="Rack")
+        rawdata_mapped_organism = pd.merge(mapped_organisms, self.rawdata)
 
         result_df = pd.concat(
             [
-                pd.merge(org_df, ast_plate_df)
-                for _, org_df in pd.merge(mapped_organisms, self.rawdata).groupby(
+                pd.merge(org_df, ast_plate_df, how="inner")
+                for _, org_df in rawdata_mapped_organism.groupby(
                     "Organism formatted"
                 )
             ]
         )
 
-        for ast_barcode, ast_plate in result_df.groupby("AsT Barcode 384"):
-            print(
+        for ast_barcode, ast_plate in result_df.groupby(self._ast_barcode_header):
+            logger.info(
                 f"AsT Plate {ast_barcode} has size: {
                     len(ast_plate) // len(ast_plate['AcD Barcode 384'].unique())
                 }"
             )
-            print(f"{ast_barcode} -> {ast_plate['AcD Barcode 384'].unique()}")
+            logger.info(f"{ast_barcode} -> {ast_plate['AcD Barcode 384'].unique()}")
         # result_df = result_df.rename({self._substance_id: "Internal ID"}) # rename whatever substance ID was given to Internal ID
         return result_df
 
@@ -445,7 +457,7 @@ class PrimaryScreen(Experiment):
     @cached_property
     def plateheatmap(self):
         return plateheatmaps(
-            self.processed,
+            self.processed.fillna(""),
             substance_id="Internal ID",
             negative_control=self._negative_controls,
             blank=self._blanks,
@@ -584,19 +596,7 @@ class PrimaryScreen(Experiment):
 
         for threshold in self.thresholds:
             # Apply Threshold to % Growth:
-            # pivot_df[f"Relative Growth < {threshold}"] = pivot_df.groupby(
-            #     ["Internal ID", "Organism", "Dataset"]
-            # )["Relative Optical Density mean"].transform(lambda x: x < threshold)
-            # Apply B-Score Treshold:
-            # B-Scores <= -3: https://doi.org/10.1128/mbio.00205-25
-            # pivot_df[f"B Score <= {self.b_score_threshold}"] = pivot_df.groupby(
-            #     ["Internal ID", "Organism", "Dataset"]
-            # )["b_scores mean"].transform(lambda x: x <= self.b_score_threshold)
-
             for dataset, dataset_grp in pivot_df.groupby("Dataset"):
-                # dataset = dataset[0]
-                # resultpath = os.path.join(filepath, dataset)
-                # result_tables[f"{dataset}_all_results"] = dataset_grp
                 if not self.precipitation.results.empty:
                     dataset_grp = pd.merge(dataset_grp, self.substances_precipitation)
                 result_tables.append(
@@ -621,33 +621,9 @@ class PrimaryScreen(Experiment):
                     columns="Organism formatted",
                 ).reset_index()
 
-                # pivot_multiindex_df = pd.pivot_table(
-                #     dataset_grp,
-                #     values=["Relative Optical Density mean"],
-                #     index=["Internal ID", "Dataset", "Concentration"],
-                #     columns="Organism",
-                # ).reset_index()
-                # cols = list(pivot_multiindex_df.columns.droplevel())
-                # cols[:3] = list(map(lambda x: x[0], pivot_multiindex_df.columns[:3]))
-                # pivot_multiindex_df.columns = cols
 
-                # # Apply threshold (active in any organism)
-                # thresholded_pivot = pivot_multiindex_df.iloc[
-                #     list(
-                #         pivot_multiindex_df.iloc[:, 3:].apply(
-                #             lambda x: any(list(map(lambda i: i < threshold, x))), axis=1
-                #         )
-                #     )
-                # ]
-
-                # Sort by columns each organism after the other
-                # return pivot_multiindex_df.sort_values(by=cols[3:])
-
-                # Sort rows by mean between the organisms (lowest mean activity first)
-                # results_sorted_by_mean_activity = pivot_multiindex_df.iloc[
-                #     pivot_multiindex_df.iloc[:, 3:].mean(axis=1).argsort()
-                # ]
-
+                print(pivot_multiindex_df.columns)
+                print(self.substances_precipitation)
                 # Sort rows by mean between the organisms (lowest mean measurement first)
                 results_sorted_by_mean_activity = pivot_multiindex_df.loc[
                     pivot_multiindex_df.loc[
@@ -662,10 +638,20 @@ class PrimaryScreen(Experiment):
                     .mean(axis=1)
                     .argsort()
                 ]
-
-                if not self.precipitation.results.empty:
+                # Only try to merge if precipitation results exist and the precipitation dataframe is present
+                if not self.precipitation.results.empty and self.substances_precipitation is not None:
+                    # If pivot_table produced MultiIndex columns, flatten them to single level so pandas.merge works
+                    if isinstance(results_sorted_by_mean_activity.columns, pd.MultiIndex):
+                        results_sorted_by_mean_activity.columns = [
+                            " ".join(col).strip() if isinstance(col, tuple) else col
+                            for col in results_sorted_by_mean_activity.columns
+                        ]
+                    # Merge explicitly on Internal ID to avoid ambiguous/level-mismatch merges
                     results_sorted_by_mean_activity = pd.merge(
-                        results_sorted_by_mean_activity, self.substances_precipitation
+                        results_sorted_by_mean_activity,
+                        self.substances_precipitation,
+                        how="left",
+                        on="Internal ID",
                     )
 
                 # Correct "mean" header if its only one replicate (remove 'mean')
@@ -739,7 +725,7 @@ class MIC(Experiment):  # Minimum Inhibitory Concentration
         negative_controls: str = "Bacteria + Medium",
         blanks: str = "Medium",
         norm_by_barcode: str = "AcD Barcode 384",
-        thresholds: list[float] = [50.0],
+        thresholds: list[float] = None,
         exclude_negative_zfactors: bool = False,
         precipitation_rawfilepath: str | None = None,
         precip_background_locations: pd.DataFrame | list[str] = [
@@ -774,10 +760,12 @@ class MIC(Experiment):  # Minimum Inhibitory Concentration
         self._substances_unmapped, self._organisms, self._dilutions, self._controls = (
             read_inputfile(inputfile_path, substance_id)
         )
-        # self._substance_id = substance_id
+
         self._negative_controls = negative_controls
         self._blanks = blanks
         self._norm_by_barcode = norm_by_barcode
+        if thresholds is None:
+            thresholds = [50.0]
         self.thresholds = thresholds
         self._processed_only_substances = (
             self.processed[  # Negative Control is still there!
@@ -902,6 +890,7 @@ class MIC(Experiment):  # Minimum Inhibitory Concentration
                 f"Not all necessary columns are present in the input table.\n(Necessary columns: {necessary_columns})"
             )
         # Check if all of the necessary column are complete:
+        # TODO: be more precise on what is missing
         if self._substances_unmapped[necessary_columns].isnull().values.any():
             raise ValueError("Input table incomplete, contains NA (missing) values.")
         # Check if there are duplicates in the internal IDs (apart from references)
@@ -954,12 +943,16 @@ class MIC(Experiment):  # Minimum Inhibitory Concentration
         input_w_concentrations = pd.concat(single_subst_concentrations)
 
         acd_dfs_list = []
-        for ast_barcode, ast_plate in input_w_concentrations.groupby("AsT Barcode 384"):
-            self._controls["AsT Barcode 384"] = list(
-                ast_plate["AsT Barcode 384"].unique()
-            )[0]
+        # for ast_barcode, ast_plate in input_w_concentrations.groupby("AsT Barcode 384"):
+        #     self._controls["AsT Barcode 384"] = list(
+        #         ast_plate["AsT Barcode 384"].unique()
+        #     )[0]
 
-            ast_plate = pd.concat([ast_plate, self._controls.copy()])
+        #     ast_plate = pd.concat([ast_plate, self._controls.copy()])
+        for ast_barcode, ast_plate in input_w_concentrations.groupby("AsT Barcode 384"):
+            controls_with_barcode = self._controls.assign(**{"AsT Barcode 384": ast_barcode})
+            ast_plate = pd.concat([ast_plate, controls_with_barcode], ignore_index=True)
+
             for org_i, organism in enumerate(organisms):
                 for replicate in range(num_replicates):
                     # Add the AcD barcode
@@ -1078,8 +1071,13 @@ class MIC(Experiment):  # Minimum Inhibitory Concentration
         # Save plots per threshold:
         for threshold in self.thresholds:
             for dataset, sub_df in self.mic_df.groupby("Dataset"):
+                # print(sub_df)
+                sub_df = sub_df.dropna(subset=f"MIC{threshold} in µM")
+                if sub_df.empty:
+                    print(f"No MICs for dataset: {dataset}, threshold: {threshold}")
+                    continue
                 dummy_df = get_upsetplot_df(
-                    sub_df.dropna(subset=f"MIC{threshold} in µM"),
+                    sub_df,
                     counts_column="Internal ID",
                     set_column="Organism",
                 )
@@ -1114,15 +1112,15 @@ class MIC(Experiment):  # Minimum Inhibitory Concentration
                 "Dataset",
             ],
             aggfunc={
-                "Relative Optical Density": ["mean"],
-                "Replicate": ["count"],
+                "Relative Optical Density": pd.Series.mean,
+                "Replicate": pd.Series.count,
                 "Z-Factor": [
-                    "mean",
-                    "std",
+                    pd.Series.mean,
+                    pd.Series.std,
                 ],
                 "Robust Z-Factor": [
-                    "mean",
-                    "std"
+                    pd.Series.mean,
+                    pd.Series.std
                 ]
                 ,  # does this make sense? with std its usable.
                 # "Z-Factor": ["std"],
@@ -1221,21 +1219,48 @@ class MIC(Experiment):  # Minimum Inhibitory Concentration
 
         for dataset, dataset_grp in mic_df.groupby("Dataset"):
             print(f"Preparing tables for dataset: {dataset}")
-            pivot_multiindex_df = pd.pivot_table(
+            
+            # dataset_grp = dataset_grp.fillna("NA")
+            values_list = [f"MIC{threshold} in µM" for threshold in self.thresholds] + [
+                "Z-Factor mean",
+                "Z-Factor std",
+            ]
+            # create pivot without resetting index so we can manipulate the MultiIndex columns
+            pivot_df = pd.pivot_table(
                 dataset_grp,
-                values=[f"MIC{threshold} in µM" for threshold in self.thresholds]
-                + ["Z-Factor mean", "Z-Factor std"],
+                values=values_list,
                 index=["Internal ID", "Dataset"],
                 columns="Organism",
-            ).reset_index()
-            # print(pivot_multiindex_df)
-            # self.pivot_multiindex_df = pivot_multiindex_df
+            )
+
+            # ensure columns are a MultiIndex of (value, organism) even if only one value was pivoted
+            if not isinstance(pivot_df.columns, pd.MultiIndex):
+                # single value case: pivot_df.columns are organisms, create first level from the single value name
+                first_value_name = values_list[0]
+                pivot_df.columns = pd.MultiIndex.from_product([[first_value_name], pivot_df.columns.tolist()])
+
+            # determine full set of organisms we want to keep (preserve order from self._organisms if available)
+            try:
+                organisms = list(self._organisms.sort_values(by="Rack")["Organism"].tolist())
+            except Exception:
+                organisms = list(self._organisms["Organism"].unique())
+
+            # build expected full MultiIndex and reindex to keep columns that were all-NaN
+            expected_columns = pd.MultiIndex.from_product([values_list, organisms])
+            pivot_df = pivot_df.reindex(columns=expected_columns)
+
+            # finally reset index to get the same shape as before
+            pivot_multiindex_df = pivot_df.reset_index()
 
             for threshold in self.thresholds:
-                # print(pivot_multiindex_df.columns)
-                # print(pivot_multiindex_df)
+
                 if pivot_multiindex_df.empty:
                     continue
+
+                # TODO: find a better fix for this:
+                # if f"MIC{threshold} in µM" not in pivot_multiindex_df.columns:
+                #     print(f"No MIC{threshold} results for dataset: {dataset}")
+                #     continue
                 organisms_thresholded_mics = pivot_multiindex_df[
                     ["Internal ID", f"MIC{threshold} in µM"]
                 ]
