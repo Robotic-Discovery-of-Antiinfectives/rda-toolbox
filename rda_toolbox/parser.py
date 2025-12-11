@@ -195,22 +195,24 @@ def collect_results(filedicts: list[dict]) -> pd.DataFrame:
     return allresults_df.reset_index(drop=True)
 
 
-def parse_readerfiles(path: str | None) -> pd.DataFrame | None:
+def parse_readerfiles(path: str | None) -> tuple[pd.DataFrame, pd.DataFrame]:
     """
-    Reads CytationC10 readerfiles (plain text files) and merges the results into a DataFrame which is returned.
+    Reads CytationC10 readerfiles (plain text files) and merges the results into
+    two DataFrames (rawdata and metadata) which is returned.
     Wrapper for readerfiles_rawdf to keep backwards compatibility.
     Improves readerfiles_rawdf, provide a single path for convenience.
     """
     if not path:
-        return None
+        return pd.DataFrame(), pd.DataFrame()
     paths = [
             os.path.join(path, f)
             for f in os.listdir(path)
             if os.path.isfile(os.path.join(path, f))
     ]
-    df = readerfiles_rawdf(paths)
-    df["Col_384"] = df["Col_384"].astype(int)
-    return df
+    df_raw = readerfiles_rawdf(paths)
+    df_raw["Col_384"] = df_raw["Col_384"].astype(int)
+    df_meta = readerfiles_metadf(paths)
+    return df_raw, df_meta
 
 def readerfiles_rawdf(paths: list[str]) -> pd.DataFrame:
     """Parses data from files declared by filepaths and merges the results into a DataFrame
