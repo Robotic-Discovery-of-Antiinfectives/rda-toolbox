@@ -22,7 +22,7 @@ mic = rda.MIC(
 ### Save the results
 
 ```Python
-mic.save_results(<tables path>, <figures path>, <processed data path>, figureformats=["svg, html"], tableformats=["xlsx", "csv"])
+mic.save_results(<tables path>, <figures path>, <processed data path>, figureformats=["svg", "html"], tableformats=["xlsx", "csv"])
 ```
 
 If everything went well you can stop now.

@@ -8,6 +8,8 @@ nav:
   - Overview: index.md
   - Input Specifications: input.md
   - Setting Up An Experiment: setup_marimo.md
+  - Tutorials:
+    - Mappingfiles: tutorial_mappingfiles.md
   - Assay Evaluation:
     - Precipitation: precipitation.md
     - Primary Screen: primary.md
