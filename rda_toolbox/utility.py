@@ -19,6 +19,9 @@ import re
 
 import altair as alt
 
+from collections.abc import Sequence
+from typing import Tuple, Any
+
 
 def get_rows_cols(platetype: int) -> tuple[int, int]:
     """
@@ -142,7 +145,7 @@ def split_position(
     Hint: Remove NAs before applying this function. E.g. `split_position(df.dropna(subset="Position"))`
     """
     df[row] = df[position].apply(lambda x: str(x[0]))
-    df[col] = df[position].apply(lambda x: str(x[1:]))
+    df[col] = df[position].apply(lambda x: int(str(x[1:])))
     return df
 
 
@@ -208,62 +211,208 @@ def chunks(l, n):
     for i in range(0, n):
         yield l[i::n]
 
-
-def mic_assaytransfer_mapping(position, orig_barcode, ast_platemapping):
+def mic_assaytransfer_mapping(
+    position: str,
+    orig_barcode: Any,
+    ast_platemapping: dict,
+    *,
+    strict: bool = False,
+) -> Tuple[str, str, str]:
     """
-    This is a rather unfinished function to map 96 well motherplates to 384 well assay transfer (AsT) plates.
+    Map a 96-well motherplate position to a 384-well AsT plate position.
 
+    Parameters
+    ----------
+    position : str
+        Well position on the 96-well plate in the form 'A1'..'H12'.
+    orig_barcode : Any
+        Identifier of the 96-well motherplate. Will be cast to str.
+    ast_platemapping : mapping
+        Mapping from motherplate barcode -> sequence of AsT plate barcodes.
+        It should support `ast_platemapping[orig_barcode]`.
+
+        Common layouts:
+        - dict[str, Sequence[str]]
+        - pandas.Series/row where `row[0]` holds a Sequence[str]
+
+    strict : bool, default False
+        If True, raise a ValueError when the requested third of the plate
+        (1/3, 2/3, 3/3) does not exist in `ast_platemapping`.
+        If False, fall back to the last available AsT plate and continue.
+
+    Returns
+    -------
+    (row_384, col_384, ast_barcode) : (str, str, str)
+        384-well plate row (A–P), column (1–24, here only 1–2 used),
+        and the corresponding AsT plate barcode.
+
+    Notes
+    -----
+    - 96-well plate: rows A–H, cols 1–12.
+    - 384-well plate: rows A–P, cols 1–24.
+      This function maps each 96-well to one of two 384 rows (2x upscaling)
+      and to column 1 or 2 (alternating).
+    - The 96-well plate is conceptually split into three vertical thirds:
+        cols  1–4  -> AsT plate index 0
+        cols  5–8  -> AsT plate index 1
+        cols  9–12 -> AsT plate index 2
     """
+
+    # ---- Normalize and validate input ----
+    if not isinstance(position, str):
+        raise TypeError(f"position must be a string like 'A1', got {type(position)}")
+
+    position = position.strip().upper()
+    if len(position) < 2:
+        raise ValueError(f"Invalid well position {position!r}")
+
     row = position[0]
-    col = int(position[1:])
+    col_str = position[1:]
+
+    if row not in "ABCDEFGH":
+        raise ValueError(f"Row {row!r} out of range for 96-well plate (A–H).")
+
+    try:
+        col = int(col_str)
+    except ValueError as exc:
+        raise ValueError(f"Column {col_str!r} is not an integer in position {position!r}.") from exc
+
+    if not (1 <= col <= 12):
+        raise ValueError(f"Column {col} out of range for 96-well plate (1–12).")
+
     orig_barcode = str(orig_barcode)
-    rowmapping = dict(
-        zip(
-            string.ascii_uppercase[0:8],
-            np.array_split(list(string.ascii_uppercase)[0:16], 8),
-        )
-    )
-    colmapping = dict(zip(list(range(1, 13)), [1, 2] * 13))
-    mapping = {
-        1: 0,
-        2: 0,
-        3: 1,
-        4: 1,
-        5: 0,
-        6: 0,
-        7: 1,
-        8: 1,
-        9: 0,
-        10: 0,
-        11: 1,
-        12: 1,
-    }
 
-    row_384 = rowmapping[row][mapping[col]]
-    col_384 = colmapping[col]
+    # ---- Build row mapping (A–H -> pairs like [A,B], [C,D], ..., [O,P]) ----
+    # 384 rows we use: A–P (16 rows), grouped into 8 pairs
+    rows_384 = list(string.ascii_uppercase[:16])  # ['A', ..., 'P']
+    row_pairs = [rows_384[i : i + 2] for i in range(0, 16, 2)]  # [['A','B'], ['C','D'], ..., ['O','P']]
 
-    # TODO: sometimes only the middle (5-8) or the last part of a motherplate is taken...
-    # Currently this would lead to an index error since A5 -> ast_of_3 = 1 but if this is the only AsT plate, the first AsT plate is "missing"...
-    # Possible solution would be to try - except decreasing the position by 4 iteratively...
-    # try A5 except IndexError: A5 - 4 -> try A1 success etc.
-    # or A12 -> ast_of_3 = 2 -> IndexError. A12 - 4 -> A8 -> IndexError. A8 - 4 -> A4 works...
-    # seems like a bad solution though.
-    # num_of_ast_plates = len(ast_platemapping[orig_barcode][0])
-    # if num_of_ast_plates < 3:
-    #     print("Did someone just take one third of a motherplate (Only one or two AsT plates for one MP)?")
+    row_index_96 = "ABCDEFGH".index(row)
 
-    if col in [1, 2, 3, 4]:
-        ast_of_3 = 0
-    elif col in [5, 6, 7, 8]:
-        ast_of_3 = 1
+    # Equivalent to your mapping dict:
+    # mapping = {1:0, 2:0, 3:1, 4:1, 5:0, 6:0, 7:1, 8:1, 9:0, 10:0, 11:1, 12:1}
+    # This can be expressed as:
+    mapping_idx = ((col - 1) // 2) % 2  # gives 0,0,1,1,0,0,1,1,0,0,1,1 for col 1..12
+
+    row_384 = row_pairs[row_index_96][mapping_idx]
+
+    # ---- Column mapping (1–12 -> 1 or 2 alternating) ----
+    # Your original colmapping: 1->1, 2->2, 3->1, 4->2, ...
+    col_384 = 1 if (col % 2) == 1 else 2
+
+    # ---- Determine which 1/3 of the motherplate this is in (0,1,2) ----
+    # 1–4 -> 0; 5–8 -> 1; 9–12 -> 2
+    ast_of_3 = (col - 1) // 4
+
+    # ---- Normalize access to ast_platemapping ----
+    def _get_ast_plates(mapping_obj, barcode: str) -> list[str]:
+        """Return a list of AsT barcodes for a given motherplate barcode."""
+        try:
+            entry = mapping_obj[barcode]
+        except KeyError as exc:
+            raise KeyError(
+                f"No entry for motherplate barcode {barcode!r} in ast_platemapping."
+            ) from exc
+
+        # For pandas row / Series where first column holds the list
+        # try to access [0]; if that fails, use entry directly.
+        try:
+            candidate = entry[0]
+        except Exception:
+            candidate = entry
+
+        # Normalize to list[str]
+        if isinstance(candidate, (str, bytes)):
+            plates = [candidate]
+        elif isinstance(candidate, Sequence):
+            plates = list(candidate)
+        else:
+            # Last resort: wrap in list
+            plates = [str(candidate)]
+
+        # Filter out obvious empties
+        plates = [str(p) for p in plates if p not in (None, "", "nan")]
+        if not plates:
+            raise ValueError(f"ast_platemapping[{barcode!r}] contains no valid AsT barcodes.")
+        return plates
+
+    ast_plates = _get_ast_plates(ast_platemapping, orig_barcode)
+
+    # ---- Choose the correct AsT plate, safely ----
+    if ast_of_3 >= len(ast_plates):
+        # We are requesting e.g. the 3rd third (index 2) but only 1 or 2 AsT plates exist.
+        if strict:
+            raise ValueError(
+                f"Motherplate {orig_barcode!r} has only {len(ast_plates)} AsT plate(s), "
+                f"cannot select segment index {ast_of_3} for column {col}."
+            )
+        # Non-strict mode: fall back to the last available AsT plate
+        # and keep going, but at least make it explicit.
+        ast_index = len(ast_plates) - 1
     else:
-        ast_of_3 = 2
-    # print("orig_barcode", orig_barcode, "ast_of_3", ast_of_3)
-    # print("ast_platemapping", ast_platemapping)
-    # print("col", col)
-    # print(ast_platemapping[orig_barcode][0])
-    barcode_384_ast = ast_platemapping[orig_barcode][0][ast_of_3]
-    return str(row_384), str(col_384), barcode_384_ast
+        ast_index = ast_of_3
+
+    barcode_384_ast = ast_plates[ast_index]
+
+    return str(row_384), str(col_384), str(barcode_384_ast)
+
+
+# def mic_assaytransfer_mapping(position, orig_barcode, ast_platemapping):
+#     """
+#     This is a rather unfinished function to map 96 well motherplates to 384 well assay transfer (AsT) plates.
+
+#     """
+#     row = position[0]
+#     col = int(position[1:])
+#     orig_barcode = str(orig_barcode)
+#     rowmapping = dict(
+#         zip(
+#             string.ascii_uppercase[0:8],
+#             np.array_split(list(string.ascii_uppercase)[0:16], 8),
+#         )
+#     )
+#     colmapping = dict(zip(list(range(1, 13)), [1, 2] * 13))
+#     mapping = {
+#         1: 0,
+#         2: 0,
+#         3: 1,
+#         4: 1,
+#         5: 0,
+#         6: 0,
+#         7: 1,
+#         8: 1,
+#         9: 0,
+#         10: 0,
+#         11: 1,
+#         12: 1,
+#     }
+
+#     row_384 = rowmapping[row][mapping[col]]
+#     col_384 = colmapping[col]
+
+#     # TODO: sometimes only the middle (5-8) or the last part of a motherplate is taken...
+#     # Currently this would lead to an index error since A5 -> ast_of_3 = 1 but if this is the only AsT plate, the first AsT plate is "missing"...
+#     # Possible solution would be to try - except decreasing the position by 4 iteratively...
+#     # try A5 except IndexError: A5 - 4 -> try A1 success etc.
+#     # or A12 -> ast_of_3 = 2 -> IndexError. A12 - 4 -> A8 -> IndexError. A8 - 4 -> A4 works...
+#     # seems like a bad solution though.
+#     # num_of_ast_plates = len(ast_platemapping[orig_barcode][0])
+#     # if num_of_ast_plates < 3:
+#     #     print("Did someone just take one third of a motherplate (Only one or two AsT plates for one MP)?")
+
+#     if col in [1, 2, 3, 4]:
+#         ast_of_3 = 0
+#     elif col in [5, 6, 7, 8]:
+#         ast_of_3 = 1
+#     else:
+#         ast_of_3 = 2
+#     # print("orig_barcode", orig_barcode, "ast_of_3", ast_of_3)
+#     print(position, orig_barcode, ast_platemapping)
+#     print("ast_platemapping", ast_platemapping)
+#     print("col", col)
+#     # print(ast_platemapping[orig_barcode][0])
+#     barcode_384_ast = ast_platemapping[orig_barcode][0][ast_of_3]
+#     return str(row_384), str(col_384), barcode_384_ast
 
 
 def mol_to_bytes(mol, format="png"):
