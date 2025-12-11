@@ -563,8 +563,7 @@ def mic_results(df, filepath, thresholds=[20, 50]):
                 "Z-Factor mean",
                 "Z-Factor std",
             ]
-        ].sort_values(by=["Concentration"])
-        # print(grp)
+        ].sort_values(by=["Concentration"])  # This sorting is very important for the mic determination!
         # Get rows where the OD is below the given threshold:
         record = {
             "Internal ID": internal_id,
@@ -586,10 +585,10 @@ def mic_results(df, filepath, thresholds=[20, 50]):
                 ]
                 < threshold
             )[0]
-            if not max_conc_below_threshold:
-                mic = None
+            if max_conc_below_threshold:
+                mic = values_below_threshold.iloc[0]["Concentration"] # the maximum concentration which is below the threshold
             else:
-                mic = values_below_threshold.iloc[0]["Concentration"]
+                mic = None
             record[f"MIC{threshold} in µM"] = mic
         mic_records.append(record)
     # Drop entries where no MIC could be determined
