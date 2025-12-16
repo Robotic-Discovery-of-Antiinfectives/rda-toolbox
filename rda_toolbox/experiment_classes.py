@@ -651,7 +651,7 @@ class PrimaryScreen(Experiment):
                         results_sorted_by_mean_activity,
                         self.substances_precipitation,
                         how="left",
-                        on="Internal ID",
+                        on=["Internal ID", "Concentration"],
                     )
 
                 # Correct "mean" header if its only one replicate (remove 'mean')
@@ -672,6 +672,19 @@ class PrimaryScreen(Experiment):
                 results_sorted_by_mean_activity = (
                     results_sorted_by_mean_activity.fillna("NA")
                 )  # Fill NA for better excel readability
+
+                # Add Concentration Unit column if available
+                unit_values = self._dilutions.get("Unit")
+                unit_val = unit_values.dropna().iloc[0] if unit_values is not None and not unit_values.dropna().empty else None
+                if "Concentration" in results_sorted_by_mean_activity.columns:
+                    concentration_idx = results_sorted_by_mean_activity.columns.get_loc("Concentration")
+                    before_cols = list(results_sorted_by_mean_activity.columns[: concentration_idx + 1])
+                    after_cols = list(results_sorted_by_mean_activity.columns[concentration_idx + 1 :])
+                    results_sorted_by_mean_activity = results_sorted_by_mean_activity.reindex(columns=before_cols + ["Concentration Unit"] + after_cols)
+                    results_sorted_by_mean_activity["Concentration Unit"] = unit_val
+                else:
+                    results_sorted_by_mean_activity["Concentration Unit"] = unit_val
+
 
                 result_tables.append(
                     Result(
