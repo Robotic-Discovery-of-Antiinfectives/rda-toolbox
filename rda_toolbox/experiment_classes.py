@@ -584,16 +584,16 @@ class PrimaryScreen(Experiment):
                 "Dataset",
             ],
             aggfunc={
-                "Relative Optical Density": np.mean,
-                "Replicate": "count",
-                "b_scores": np.mean,
-                "Z-Factor": np.mean,
-                "Robust Z-Factor": np.mean,
+                # We need lists here for MultiIndex, otherwise the returned DataFrame is flat
+                "Relative Optical Density": ["mean"],
+                "Replicate": ["count"],
+                "b_scores": ["mean"],
+                "Z-Factor": ["mean"],
+                "Robust Z-Factor": ["mean"],
             },
         ).reset_index()
-
         pivot_df.columns = [" ".join(x).strip() for x in pivot_df.columns.ravel()]
-        
+
         for threshold in self.thresholds:
             # Apply Threshold to % Growth:
             for dataset, dataset_grp in pivot_df.groupby("Dataset"):
@@ -619,7 +619,7 @@ class PrimaryScreen(Experiment):
                 pivot_multiindex_df = pd.pivot_table(
                     thresholded_dataset_grp,
                     values=["Relative Optical Density mean", "b_scores mean", "Z-Factor mean"],
-                    index=["Internal ID", "Dataset", "Concentration", "Organism"],
+                    index=["Internal ID", "Dataset", "Concentration"],
                     columns="Organism formatted",
                 ).reset_index()
 
@@ -1131,10 +1131,10 @@ class MIC(Experiment):  # Minimum Inhibitory Concentration
                 "Dataset",
             ],
             aggfunc={
-                "Relative Optical Density": np.mean,
-                "Replicate": "count",
-                "Z-Factor": [np.mean, np.std],
-                "Robust Z-Factor": [np.mean, np.std],
+                "Relative Optical Density": ["mean"],
+                "Replicate": ["count"],
+                "Z-Factor": ["mean", "std"],
+                "Robust Z-Factor": ["mean", "std"],
             },
             # margins=True
             fill_value=0 # This might result in confusion, if there are no replicates (1)
@@ -1192,6 +1192,8 @@ class MIC(Experiment):  # Minimum Inhibitory Concentration
         # Merge inconsistent (but maybe necessary) columns again
         mic_df = pd.merge(mic_df, df[["Internal ID", "External ID"]], on=["Internal ID"])
         mic_df = pd.merge(mic_df, self._organisms[["Organism", "Organism formatted"]], on=["Organism formatted"])
+        unit_values = self._dilutions.get("Unit")
+        mic_df["Unit"] = unit_values.dropna().iloc[0] if unit_values is not None and not unit_values.dropna().empty else None
         mic_df = mic_df.drop_duplicates()
         return mic_df
 
@@ -1269,10 +1271,6 @@ class MIC(Experiment):  # Minimum Inhibitory Concentration
                 if pivot_multiindex_df.empty:
                     continue
 
-                # TODO: find a better fix for this:
-                # if f"MIC{threshold} in µM" not in pivot_multiindex_df.columns:
-                #     print(f"No MIC{threshold} results for dataset: {dataset}")
-                #     continue
                 organisms_thresholded_mics = pivot_multiindex_df[
                     ["Internal ID", f"MIC{threshold} in µM"]
                 ]
@@ -1298,6 +1296,14 @@ class MIC(Experiment):  # Minimum Inhibitory Concentration
                     )
                 organisms_thresholded_mics = organisms_thresholded_mics.reset_index(drop=True)
                 organisms_thresholded_mics = organisms_thresholded_mics.drop_duplicates()
+                # Add unit column
+                unit_values = self._dilutions.get("Unit")
+                organisms_thresholded_mics["Unit"] = unit_values.dropna().iloc[0] if unit_values is not None and not unit_values.dropna().empty else None
+                # Reorder columns
+                desired_order = ["Internal ID", "External ID"]
+                remaining_cols = [col for col in organisms_thresholded_mics.columns if col not in desired_order]
+                organisms_thresholded_mics = organisms_thresholded_mics[desired_order + remaining_cols]
+                organisms_thresholded_mics = organisms_thresholded_mics.replace("nan", "NA").fillna("NA")
                 result_tables.append(
                     Result(
                         dataset_name,
