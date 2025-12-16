@@ -41,6 +41,7 @@ from .plot import (
     lineplots_facet,
     potency_distribution,
     measurement_vs_bscore_scatter,
+    ChartLike
 )
 
 logger = logging.getLogger(__name__)
@@ -65,13 +66,18 @@ class Experiment:
         Save all plots and tables to resultdir
     """
 
-    def __init__(self, rawfiles_folderpath: str, plate_type: int):
+    def __init__(self, rawfiles_folderpath: Optional[str], plate_type: int):
         self._plate_type = plate_type
         self._rows, self._columns = get_rows_cols(plate_type)
         self._rawfiles_folderpath = rawfiles_folderpath
-        self.rawdata, self.metadata = parse_readerfiles(
-            rawfiles_folderpath
-        )  # Get rawdata, this will later be overwritten by adding precipitation, if available
+        # If no path is provided, initialize empty placeholders instead of calling parse_readerfiles
+        if not rawfiles_folderpath:
+            self.rawdata = pd.DataFrame()
+            self.metadata = {}
+        else:
+            self.rawdata, self.metadata = parse_readerfiles(
+                rawfiles_folderpath
+            )  # Get rawdata, this will later be overwritten by adding precipitation, if available
 
     # def save_results(
     #     self,
@@ -92,7 +98,7 @@ class Result:
     dataset: str
     file_basename: str
     table: pd.DataFrame | None = None
-    figure: alt.Chart | None = None
+    figure: ChartLike | None = None
 
 
 class Precipitation(Experiment):
@@ -371,16 +377,7 @@ class PrimaryScreen(Experiment):
         - Check if substances contains missing values.
         - Check if there are duplicate Internal IDs (references excluded)
         """
-        # if not all(column in self._substances_unmapped.columns for column in necessary_columns):
-        #     raise ValueError(
-        #         f"Not all necessary columns are present in the input table.\n(Necessary columns: {necessary_columns})"
-        #     )
-        # # Check if all of the necessary column are complete:
-        # if substances[necessary_columns].isnull().values.any():
-        #     raise ValueError(
-        #         "Input table incomplete, contains NA (missing) values."
-        #     )
-        # # Check if there are duplicates in the internal IDs (apart from references)
+        
 
     @cached_property
     def mapped_input_df(self):
@@ -525,25 +522,26 @@ class PrimaryScreen(Experiment):
                 threshold=threshold,
             )
             for dataset, sub_df in subset.groupby("Dataset"):
+                dataset_name = str(dataset)
                 dummy_df = get_upsetplot_df(sub_df, counts_column="Internal ID")
 
                 result_figures.append(
                     Result(
-                        dataset,
-                        f"UpSetPlot_{dataset}",
-                        figure=UpSetAltair(dummy_df, title=dataset),
+                        dataset_name,
+                        f"UpSetPlot_{dataset_name}",
+                        figure=UpSetAltair(dummy_df, title=dataset_name),
                     )
                 )
                 # ---
-                only_actives = self.results[f"{dataset}_all_results"][
-                    self.results[f"{dataset}_all_results"]
+                only_actives = self.results[f"{dataset_name}_all_results"][
+                    self.results[f"{dataset_name}_all_results"]
                     .groupby("Organism")["Relative Optical Density mean"]
                     .transform(lambda x: x < threshold)
                 ]
                 result_figures.append(
                     Result(
-                        dataset,
-                        f"Scatterplot_BScores_{dataset}",
+                        dataset_name,
+                        f"Scatterplot_BScores_{dataset_name}",
                         figure=measurement_vs_bscore_scatter(
                             only_actives, show_area=False
                         ),
@@ -586,21 +584,25 @@ class PrimaryScreen(Experiment):
                 "Dataset",
             ],
             aggfunc={
-                "Relative Optical Density": ["mean"],
-                "Replicate": ["count"],
-                "b_scores": ["mean"],
+                "Relative Optical Density": np.mean,
+                "Replicate": "count",
+                "b_scores": np.mean,
+                "Z-Factor": np.mean,
+                "Robust Z-Factor": np.mean,
             },
         ).reset_index()
 
         pivot_df.columns = [" ".join(x).strip() for x in pivot_df.columns.ravel()]
-
+        
         for threshold in self.thresholds:
             # Apply Threshold to % Growth:
             for dataset, dataset_grp in pivot_df.groupby("Dataset"):
-                if not self.precipitation.results.empty:
-                    dataset_grp = pd.merge(dataset_grp, self.substances_precipitation)
+                dataset_name = str(dataset)
+                if not self.precipitation.results.empty and not self.substances_precipitation is None:
+                    dataset_grp = pd.merge(dataset_grp, self.substances_precipitation, how="outer")
+
                 result_tables.append(
-                    Result(dataset, f"{dataset}_all_results", table=dataset_grp)
+                    Result(dataset_name, f"{dataset_name}_all_results", table=dataset_grp)
                 )
 
                 # Apply threshold conditions:
@@ -616,14 +618,12 @@ class PrimaryScreen(Experiment):
                 # Pivot the long table for excel viewability:
                 pivot_multiindex_df = pd.pivot_table(
                     thresholded_dataset_grp,
-                    values=["Relative Optical Density mean", "b_scores mean"],
+                    values=["Relative Optical Density mean", "b_scores mean", "Z-Factor mean"],
                     index=["Internal ID", "Dataset", "Concentration", "Organism"],
                     columns="Organism formatted",
                 ).reset_index()
 
 
-                print(pivot_multiindex_df.columns)
-                print(self.substances_precipitation)
                 # Sort rows by mean between the organisms (lowest mean measurement first)
                 results_sorted_by_mean_activity = pivot_multiindex_df.loc[
                     pivot_multiindex_df.loc[
@@ -669,10 +669,14 @@ class PrimaryScreen(Experiment):
                     )
                 )
 
+                results_sorted_by_mean_activity = (
+                    results_sorted_by_mean_activity.fillna("NA")
+                )  # Fill NA for better excel readability
+
                 result_tables.append(
                     Result(
-                        dataset,
-                        f"{dataset}_threshold{round(threshold)}_results",
+                        dataset_name,
+                        f"{dataset_name}_threshold{round(threshold)}_results",
                         table=results_sorted_by_mean_activity,
                     )
                 )
@@ -725,7 +729,7 @@ class MIC(Experiment):  # Minimum Inhibitory Concentration
         negative_controls: str = "Bacteria + Medium",
         blanks: str = "Medium",
         norm_by_barcode: str = "AcD Barcode 384",
-        thresholds: list[float] = None,
+        thresholds: list[float] | None = None,
         exclude_negative_zfactors: bool = False,
         precipitation_rawfilepath: str | None = None,
         precip_background_locations: pd.DataFrame | list[str] = [
@@ -873,7 +877,7 @@ class MIC(Experiment):  # Minimum Inhibitory Concentration
 
         ast_platemapping, _ = read_platemapping(
             self._mp_ast_mapping_filepath,
-            self._substances_unmapped["MP Barcode 96"].unique(),
+            list(map(str, self._substances_unmapped["MP Barcode 96"].unique())),
         )
         # Do some sanity checks:
         necessary_columns = [
@@ -918,7 +922,7 @@ class MIC(Experiment):  # Minimum Inhibitory Concentration
         )
         acd_platemapping, replicates_dict = read_platemapping(
             self._ast_acd_mapping_filepath,
-            self._substances_unmapped["AsT Barcode 384"].unique(),
+            list(map(str, self._substances_unmapped["AsT Barcode 384"].unique())),
         )
         num_replicates = list(set(replicates_dict.values()))[0]
         single_subst_concentrations = []
@@ -1030,6 +1034,7 @@ class MIC(Experiment):  # Minimum Inhibitory Concentration
             )
 
         for dataset, dataset_data in self._processed_only_substances.groupby("Dataset"):
+            dataset_name = str(dataset)
             # Look for and add the corresponding references for each dataset:
             if "AcD Barcode 384" in dataset_data:
                 dataset_barcodes = list(dataset_data["AcD Barcode 384"].unique())
@@ -1058,10 +1063,23 @@ class MIC(Experiment):  # Minimum Inhibitory Concentration
                 for threshold in self.thresholds:
                     result_figures.append(
                         Result(
-                            dataset,
-                            f"{dataset}_lineplots_facet_thrsh{threshold}",
+                            dataset_name,
+                            f"{dataset_name}_lineplots_facet_thrsh{threshold}_InternalID",
                             figure=lineplots_facet(
                                 lineplots_input_df,
+                                by_id="Internal ID",
+                                exclude_negative_zfactors=self._exclude_negative_zfactor,
+                                threshold=threshold,
+                            ),
+                        )
+                    )
+                    result_figures.append(
+                        Result(
+                            dataset_name,
+                            f"{dataset_name}_lineplots_facet_thrsh{threshold}_ExternalID",
+                            figure=lineplots_facet(
+                                lineplots_input_df,
+                                by_id="External ID",
                                 exclude_negative_zfactors=self._exclude_negative_zfactor,
                                 threshold=threshold,
                             ),
@@ -1071,10 +1089,11 @@ class MIC(Experiment):  # Minimum Inhibitory Concentration
         # Save plots per threshold:
         for threshold in self.thresholds:
             for dataset, sub_df in self.mic_df.groupby("Dataset"):
+                dataset_name = str(dataset)
                 # print(sub_df)
                 sub_df = sub_df.dropna(subset=f"MIC{threshold} in µM")
                 if sub_df.empty:
-                    print(f"No MICs for dataset: {dataset}, threshold: {threshold}")
+                    print(f"No MICs for dataset: {dataset_name}, threshold: {threshold}")
                     continue
                 dummy_df = get_upsetplot_df(
                     sub_df,
@@ -1084,16 +1103,16 @@ class MIC(Experiment):  # Minimum Inhibitory Concentration
 
                 result_figures.append(
                     Result(
-                        dataset,
-                        f"{dataset}_UpSetPlot",
-                        figure=UpSetAltair(dummy_df, title=dataset),
+                        dataset_name,
+                        f"{dataset_name}_UpSetPlot",
+                        figure=UpSetAltair(dummy_df, title=dataset_name),
                     )
                 )
                 result_figures.append(
                     Result(
-                        dataset,
-                        f"{dataset}_PotencyDistribution",
-                        figure=potency_distribution(sub_df, threshold, dataset),
+                        dataset_name,
+                        f"{dataset_name}_PotencyDistribution",
+                        figure=potency_distribution(sub_df, threshold, dataset_name),
                     )
                 )
         return result_figures
@@ -1112,18 +1131,10 @@ class MIC(Experiment):  # Minimum Inhibitory Concentration
                 "Dataset",
             ],
             aggfunc={
-                "Relative Optical Density": pd.Series.mean,
-                "Replicate": pd.Series.count,
-                "Z-Factor": [
-                    pd.Series.mean,
-                    pd.Series.std,
-                ],
-                "Robust Z-Factor": [
-                    pd.Series.mean,
-                    pd.Series.std
-                ]
-                ,  # does this make sense? with std its usable.
-                # "Z-Factor": ["std"],
+                "Relative Optical Density": np.mean,
+                "Replicate": "count",
+                "Z-Factor": [np.mean, np.std],
+                "Robust Z-Factor": [np.mean, np.std],
             },
             # margins=True
             fill_value=0 # This might result in confusion, if there are no replicates (1)
@@ -1210,7 +1221,7 @@ class MIC(Experiment):  # Minimum Inhibitory Concentration
 
         mic_df = self.mic_df
         # If precipitation has been done, merge MPC results on long mic_df
-        if not self.precipitation.results.empty:
+        if not self.precipitation.results.empty and not self.substances_minimum_precipitation_conc is None:
             mic_df = pd.merge(self.mic_df, self.substances_minimum_precipitation_conc, on="Internal ID", how="left")
 
         result_tables.append(
@@ -1218,7 +1229,8 @@ class MIC(Experiment):  # Minimum Inhibitory Concentration
         )
 
         for dataset, dataset_grp in mic_df.groupby("Dataset"):
-            print(f"Preparing tables for dataset: {dataset}")
+            dataset_name = str(dataset)
+            print(f"Preparing tables for dataset: {dataset_name}")
             
             # dataset_grp = dataset_grp.fillna("NA")
             values_list = [f"MIC{threshold} in µM" for threshold in self.thresholds] + [
@@ -1278,7 +1290,7 @@ class MIC(Experiment):  # Minimum Inhibitory Concentration
                 organisms_thresholded_mics = pd.merge(organisms_thresholded_mics, self.mic_df[["Internal ID", "External ID"]], on=["Internal ID"], how="left")
                 # organisms_thresholded_mics.fillna("NA", inplace=True)
 
-                if not self.precipitation.results.empty:
+                if not self.precipitation.results.empty and not self.substances_minimum_precipitation_conc is None:
                     organisms_thresholded_mics = pd.merge(
                         organisms_thresholded_mics,
                         self.substances_minimum_precipitation_conc,
@@ -1288,8 +1300,8 @@ class MIC(Experiment):  # Minimum Inhibitory Concentration
                 organisms_thresholded_mics = organisms_thresholded_mics.drop_duplicates()
                 result_tables.append(
                     Result(
-                        dataset,
-                        f"{dataset}_MIC{int(round(threshold))}_results",
+                        dataset_name,
+                        f"{dataset_name}_MIC{int(round(threshold))}_results",
                         table=organisms_thresholded_mics.reset_index(drop=True)
                     )
                 )
