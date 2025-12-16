@@ -618,7 +618,7 @@ class PrimaryScreen(Experiment):
                 # Pivot the long table for excel viewability:
                 pivot_multiindex_df = pd.pivot_table(
                     thresholded_dataset_grp,
-                    values=["Relative Optical Density mean", "b_scores mean", "Z-Factor mean"],
+                    values=["Relative Optical Density mean", "Z-Factor mean"],
                     index=["Internal ID", "Dataset", "Concentration"],
                     columns="Organism formatted",
                 ).reset_index()
@@ -659,15 +659,15 @@ class PrimaryScreen(Experiment):
                     results_sorted_by_mean_activity = results_sorted_by_mean_activity.rename(
                         columns={
                             "Relative Optical Density mean": "Relative Optical Density",
-                            "b_scores mean": "B-Score",
+                            # "b_scores mean": "B-Score",
                         }
                     )
 
-                results_sorted_by_mean_activity = (
-                    results_sorted_by_mean_activity.rename(
-                        columns={"b_scores mean": "B-Score mean"}
-                    )
-                )
+                # results_sorted_by_mean_activity = (
+                #     results_sorted_by_mean_activity.rename(
+                #         columns={"b_scores mean": "B-Score mean"}
+                #     )
+                # )
 
                 results_sorted_by_mean_activity = (
                     results_sorted_by_mean_activity.fillna("NA")
