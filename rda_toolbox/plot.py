@@ -571,7 +571,6 @@ def lineplots_facet(
     df = prepare_visualization(
         df, by_id=by_id, exclude_negative_zfactors=exclude_negative_zfactors, threshold=threshold
     )
-    hline_y = 50
     organism_columns = []
 
     color = alt.condition(

@@ -478,12 +478,12 @@ def inchi_to_imgstr(inchi):
 
 
 def prepare_visualization(
-    df,
-    by_id="Internal ID",
-    whisker_width=1,
-    exclude_negative_zfactors=True,
-    threshold=50.0,
-):
+    df: pd.DataFrame,
+    by_id: str = "Internal ID",
+    whisker_width: int = 1,
+    exclude_negative_zfactors: bool = True,
+    threshold: float = 50.0,
+) -> pd.DataFrame:
     """
     Does formatting for the facet lineplots.
     """
@@ -509,7 +509,7 @@ def prepare_visualization(
     df.loc[:, "lerror"] = (
         df["Mean Relative Optical Density"] - df["Std. Relative Optical Density"]
     )
-    tmp_list = []
+    tmp_list: list[pd.DataFrame] = []
     for _, grp in df.groupby([by_id, "Organism"]):
         # use replicate == 1 as the meaned OD is the same in all 3 replicates anyways
         # print(grp)
