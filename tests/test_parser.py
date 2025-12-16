@@ -46,6 +46,7 @@ def test_missing_concentration_unit(tmp_path):
     _write_excel(path, {"Substances": subs, "Organisms": orgs, "Dilutions": dil, "Controls": ctrl})
     with pytest.raises(ValueError) as exc:
         _validate_inputfile_structure(str(path), "MyID")
+    assert "no concentration unit" in str(exc.value).lower()
 
 
 def test_invalid_control_positions(tmp_path):
