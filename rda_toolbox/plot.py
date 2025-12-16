@@ -3,6 +3,7 @@
 import altair as alt
 import pandas as pd
 import pathlib
+from typing import Sequence, Mapping, TypeAlias
 from .utility import (
     prepare_visualization,
     get_upsetplot_df,
@@ -12,7 +13,13 @@ from .process import (
 )
 
 
-def get_heatmap(subdf, substance_id, measurement, negative_controls, blanks):
+def get_heatmap(
+    subdf: pd.DataFrame,
+    substance_id: str,
+    measurement: str,
+    negative_controls: str,
+    blanks: str,
+) -> alt.LayerChart:
     base = alt.Chart(
         subdf,
     ).encode(
@@ -40,13 +47,13 @@ def get_heatmap(subdf, substance_id, measurement, negative_controls, blanks):
 
 
 def plateheatmaps(
-    df,
-    substance_id="ID",
-    measurement="Raw Optical Density",
-    barcode="Barcode",
-    negative_control="Negative Control",
-    blank="Medium",
-) -> alt.vegalite.v5.api.HConcatChart:
+    df: pd.DataFrame,
+    substance_id: str = "ID",
+    measurement: str = "Raw Optical Density",
+    barcode: str = "Barcode",
+    negative_control: str = "Negative Control",
+    blank: str = "Medium",
+) -> alt.HConcatChart:
     """
     Parameters:
         df (pandas.DataFrame): Dataframe with relevant data
@@ -92,7 +99,7 @@ def plateheatmaps(
     return plate_heatmaps
 
 
-def blank_heatmap(blank_df):
+def blank_heatmap(blank_df: pd.DataFrame) -> alt.LayerChart:
     blank_df = blank_df.copy()[["Row_384", "Col_384", "Raw Optical Density"]]
     title = "Blank (Only Medium) plate"
     base = alt.Chart(
@@ -113,15 +120,23 @@ def blank_heatmap(blank_df):
     return alt.layer(heatmap, text)
 
 
+ChartLike: TypeAlias = (
+    alt.Chart
+    | alt.LayerChart
+    | alt.ConcatChart
+    | alt.HConcatChart
+    | alt.VConcatChart
+)
+
+
 # The following two functions are (modified versions) from https://github.com/hms-dbmi/upset-altair-notebook
 # http://upset.plus/covid19symptoms/
 # and were provided under the MIT licence
 # by Sehi L'yi and Nils Gehlenborg
 
-
 def upsetaltair_top_level_configuration(
-    base, legend_orient="top-left", legend_symbol_size=30
-):
+    base: ChartLike, legend_orient: str = "top-left", legend_symbol_size: int = 30
+) -> ChartLike:
     return (
         base.configure_view(stroke=None)
         .configure_title(
@@ -150,28 +165,28 @@ def upsetaltair_top_level_configuration(
 
 
 def UpSetAltair(
-    data=None,
-    title="",
-    subtitle="",
-    sets=None,
-    abbre=None,
-    sort_by="frequency",
-    sort_by_order="ascending",
-    inter_degree_frequency="ascending",
-    width=1200,
-    height=700,
-    height_ratio=0.6,
-    horizontal_bar_chart_width=300,
-    set_colors_dict=dict(),
-    highlight_color="#777777",
-    glyph_size=200,
-    set_label_bg_size=1000,
-    line_connection_size=2,
-    horizontal_bar_size=20,
-    vertical_bar_label_size=16,
-    vertical_bar_padding=20,
-    set_labelstyle="normal",
-):
+    data: pd.DataFrame | None = None,
+    title: str = "",
+    subtitle: str = "",
+    sets: Sequence[str] | None = None,
+    abbre: Mapping[str, str] | None = None,
+    sort_by: str = "frequency",
+    sort_by_order: str = "ascending",
+    inter_degree_frequency: str = "ascending",
+    width: int = 1200,
+    height: int = 700,
+    height_ratio: float = 0.6,
+    horizontal_bar_chart_width: int = 300,
+    set_colors_dict: dict[str, str] | None = None,
+    highlight_color: str = "#777777",
+    glyph_size: int = 200,
+    set_label_bg_size: int = 1000,
+    line_connection_size: int = 2,
+    horizontal_bar_size: int = 20,
+    vertical_bar_label_size: int = 16,
+    vertical_bar_padding: int = 20,
+    set_labelstyle: str = "normal",
+) -> ChartLike | None:
     """This function generates Altair-based interactive UpSet plots.
 
     Parameters:
@@ -200,7 +215,7 @@ def UpSetAltair(
 
     if data is None:
         print("No data and/or a list of sets are provided")
-        return
+        return None
     if sets is None:
         sets = list(data.columns[1:])
 
@@ -208,9 +223,9 @@ def UpSetAltair(
         print("height_ratio set to 0.5")
         height_ratio = 0.5
     if not abbre:
-        abbre = {set: set for set in sets}
+        abbre = {set_name: set_name for set_name in sets}
     if len(sets) != len(abbre):
-        abbre = sets
+        abbre = {set_name: set_name for set_name in sets}
         print(
             "Dropping the `abbre` list because the lengths of `sets` and `abbre` are not identical."
         )
@@ -245,8 +260,8 @@ def UpSetAltair(
     """
     data = data.copy()
     data["count"] = 0
-    data = data[sets + ["count"]]
-    data = data.groupby(sets).count().reset_index()
+    data = data[list(sets) + ["count"]]
+    data = data.groupby(list(sets)).count().reset_index()
 
     data["intersection_id"] = data.index
     data["degree"] = data[sets].sum(axis=1)
@@ -331,7 +346,7 @@ def UpSetAltair(
         .transform_aggregate(
             # count, set1, set2, ...
             count="sum(count)",
-            groupby=sets,
+            groupby=list(sets),
         )
         .transform_calculate(
             # count, set1, set2, ...
@@ -349,7 +364,7 @@ def UpSetAltair(
         )
         .transform_fold(
             # count, set1, set2, ..., degree, intersection_id
-            sets,
+            list(sets),
             as_=["set", "is_intersect"],
         )
         .transform_lookup(
@@ -513,7 +528,7 @@ def UpSetAltair(
     upsetaltair = upsetaltair_top_level_configuration(
         upsetaltair,
         legend_orient="top",
-        legend_symbol_size=set_label_bg_size / 2.0,
+        legend_symbol_size=int(set_label_bg_size / 2.0),
     ).properties(
         title={
             "text": title,
@@ -528,10 +543,10 @@ def UpSetAltair(
 
 
 def UpSet_per_dataset(
-    df: pd.DataFrame,  # processed
-    save_formats=["pdf", "svg"],
-    id_column="Internal ID",
-):
+    df: pd.DataFrame,
+    save_formats: Sequence[str] = ("pdf", "svg"),
+    id_column: str = "Internal ID",
+) -> None:
     """
     UpsetPlot wrapper function which applies threshold to processed data (without controls, references etc.).
     For each dataset present in the given df, create a dummy_df for rda.UpSetAltair() and save the UpSetPlot.
@@ -545,23 +560,26 @@ def UpSet_per_dataset(
     )
 
     for dataset, sub_df in subset.groupby("Dataset"):
+        dataset_name = str(dataset)
         dummy_df = get_upsetplot_df(sub_df, counts_column=id_column)
         # Create dataset folder if non-existent
-        pathlib.Path(f"../figures/{dataset}").mkdir(parents=True, exist_ok=True)
+        pathlib.Path(f"../figures/{dataset_name}").mkdir(parents=True, exist_ok=True)
         for save_format in save_formats:
-            filename = f"../figures/{dataset}/UpSetPlot_{dataset}.{save_format}"
+            filename = f"../figures/{dataset_name}/UpSetPlot_{dataset_name}.{save_format}"
             print("Saving", filename)
-            dataset_upsetplot = UpSetAltair(dummy_df, title=dataset).save(filename)
+            dataset_upsetplot = UpSetAltair(dummy_df, title=dataset_name)
+            if dataset_upsetplot is not None:
+                dataset_upsetplot.save(filename)
 
 
 def lineplots_facet(
     df: pd.DataFrame,
-    hline_y: int=50,
-    by_id: str="Internal ID",
-    whisker_width: int=10,
-    exclude_negative_zfactors: bool=True,
-    threshold: float=50.0,
-) -> alt.vegalite.v5.api.HConcatChart:
+    hline_y: int = 50,
+    by_id: str = "Internal ID",
+    whisker_width: int = 10,
+    exclude_negative_zfactors: bool = True,
+    threshold: float = 50.0,
+) -> alt.HConcatChart:
     """
     Assay: MIC
     Input: processed_df
@@ -574,7 +592,6 @@ def lineplots_facet(
     organism_columns = []
 
     color = alt.condition(
-        # alt.datum.Concentration
         alt.datum.max_conc_below_threshold,
         alt.Color(f"{by_id}:N"),
         alt.value("lightgray"),
@@ -592,9 +609,7 @@ def lineplots_facet(
                 title="Relative Optical Density",
                 scale=alt.Scale(domain=[-20, 160], clamp=True),
             ),
-            # color="Internal ID:N",
-            shape=alt.Shape("External ID:N", legend=None),
-            # color=color,
+            shape=alt.Shape(f"{by_id}:N", legend=None),
             tooltip=[
                 "Internal ID",
                 "External ID",
@@ -646,8 +661,8 @@ def lineplots_facet(
 
 
 def mic_hitstogram(
-    data, mic_col, title="Count Distribution of Hits over Concentration"
-):
+    data: pd.DataFrame, mic_col: str, title: str = "Count Distribution of Hits over Concentration"
+) -> alt.LayerChart:
     """
     It's a Hi(t)stogram...
     Plots distribution of hits over determined MICs.
@@ -683,12 +698,12 @@ def potency_distribution(
     dataset_grp: pd.DataFrame,
     threshold: float,
     dataset: str,
-    intervals: list[float] = [0.05, 0.1, 0.78, 6.25, 50],
+    intervals: Sequence[float] = (0.05, 0.1, 0.78, 6.25, 50),
     title: str = "Potency Distribution",
     ylabel: str = "Number of Compounds",
     xlabel: str = "MIC Interval",
-    legendlabelorient: str = "bottom",  # right, bottom, top-left, etc.
-):
+    legendlabelorient: str = "bottom",
+) -> alt.LayerChart:
     """
     Input: MIC.results["MIC_Results_AllDatasets_longformat"]
 
@@ -761,7 +776,7 @@ def measurement_vs_bscore_scatter(
     show_area: bool = True,
     measurement_threshold: float = 50,
     b_score_threshold: float = -3,
-):
+) -> alt.LayerChart:
     """
     Creates a scatter plot for Primary Screens plotting the raw measurement values against B-Scores.
     Dont forget to exclude controls from the given DF.
