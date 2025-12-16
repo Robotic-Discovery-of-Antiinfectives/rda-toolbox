@@ -120,12 +120,13 @@ def blank_heatmap(blank_df: pd.DataFrame) -> alt.LayerChart:
     return alt.layer(heatmap, text)
 
 
-ChartLike: TypeAlias = (
+ChartLike: TypeAlias = (  # type alias for various Altair chart subtypes
     alt.Chart
     | alt.LayerChart
     | alt.ConcatChart
     | alt.HConcatChart
     | alt.VConcatChart
+    | alt.FacetChart
 )
 
 
