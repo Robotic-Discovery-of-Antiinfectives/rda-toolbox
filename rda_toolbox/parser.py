@@ -66,9 +66,9 @@ def readerfile_parser(
     while line_num < len(lines):
         if lines[line_num] == resulttable_header:
             line_num += 1
-            header = map(
-                int, lines[line_num].strip("\n").split(";")[1:]
-            )  # get the header
+            header = list(
+                map(int, lines[line_num].strip("\n").split(";")[1:])
+            )  # get the header as a concrete list
             index = [""] * num_rows
             for _row_num in range(num_rows):  # for the next num_rows, read result data
                 line_num += 1
@@ -343,7 +343,180 @@ def parse_mappingfile(
     return mapping_df
 
 
+def _validate_inputfile_structure(inputfile_path: str, substance_id: str) -> None:
+    """
+    Validate that the input Excel file exists and contains the expected sheets
+    and minimal required columns. Raises ValueError with a human-readable list
+    of issues if anything important is missing.
+
+    Checks performed:
+    - file exists
+    - required sheets: Substances, Organisms, Dilutions, Controls
+    - Substances sheet contains the column given by `substance_id`
+    - Organisms sheet contains 'Organism'
+    - Controls sheet contains a column starting with 'Position' and all non-null
+      values in that column look like a letter followed by digits (e.g. 'A1', 'P24')
+    """
+    issues: list[str] = []
+
+    if not inputfile_path or not os.path.exists(inputfile_path):
+        raise FileNotFoundError(f"Input file not found: {inputfile_path!r}")
+
+    try:
+        xls = pd.ExcelFile(inputfile_path)
+    except Exception as exc:
+        raise ValueError(f"Unable to open Excel file {inputfile_path!r}: {exc}") from exc
+
+    available_sheets = [str(s).strip() for s in xls.sheet_names]
+    required_sheets = ["Substances", "Organisms", "Dilutions", "Controls"]
+    missing_sheets = [s for s in required_sheets if s not in available_sheets]
+    if missing_sheets:
+        issues.append(
+            "Missing sheets: " + ", ".join(missing_sheets) + ". "
+            "Expected sheets are: Substances, Organisms, Dilutions, Controls."
+        )
+
+    # If Substances sheet exists, check for substance_id column
+    if "Substances" in available_sheets:
+        try:
+            subs_df = pd.read_excel(xls, "Substances", nrows=0)
+        except Exception:
+            issues.append("Could not read the 'Substances' sheet.")
+        else:
+            if substance_id not in subs_df.columns:
+                issues.append(
+                    f"Substances sheet does not contain the required column {substance_id!r}."
+                    " This column identifies each substance (e.g. an internal ID)."
+                )
+            else:
+                # attempt to read some rows to validate IDs
+                try:
+                    subs_df = pd.read_excel(xls, "Substances")
+                except Exception:
+                    issues.append("Could not read the contents of the 'Substances' sheet.")
+                else:
+                    if subs_df[substance_id].isnull().any():
+                        issues.append(
+                            f"Substances.{substance_id} contains empty values. Every substance must have an ID."
+                        )
+                    dup_mask = subs_df[substance_id].duplicated(keep=False)
+                    if dup_mask.any():
+                        example_dups = subs_df.loc[dup_mask, substance_id].astype(str).unique()[:5]
+                        issues.append(
+                            f"Substances.{substance_id} contains duplicate IDs. Example duplicates: {', '.join(map(str, example_dups))}."
+                        )
+                    
+
+    # Organisms sheet -> must have 'Organism'
+    if "Organisms" in available_sheets:
+        try:
+            org_df = pd.read_excel(xls, "Organisms", nrows=0)
+        except Exception:
+            issues.append("Could not read the 'Organisms' sheet.")
+        else:
+            if "Organism" not in org_df.columns:
+                issues.append(
+                    "Organisms sheet does not contain the required column 'Organism'."
+                )
+            else:
+                try:
+                    org_df = pd.read_excel(xls, "Organisms", nrows=50)
+                except Exception:
+                    issues.append("Could not read the contents of the 'Organisms' sheet.")
+                else:
+                    if org_df["Organism"].dropna().empty:
+                        issues.append("Organisms sheet appears to be empty — at least one Organism entry is required.")
+    # --- Dilutions sheet checks ---
+    if "Dilutions" in available_sheets:
+        try:
+            dil_header = pd.read_excel(xls, "Dilutions", nrows=0)
+        except Exception:
+            issues.append("Could not read the 'Dilutions' sheet header.")
+        else:
+            try:
+                dil_df = pd.read_excel(xls, "Dilutions", nrows=50)
+            except Exception:
+                issues.append("Could not read the contents of the 'Dilutions' sheet.")
+            else:
+                # look for at least one numeric concentration-like column name
+                name_like = [
+                    c for c in dil_df.columns
+                    if re.search(r"conc|concent|dilut|dose", str(c), re.I)
+                ]
+                # detect numeric columns by dtype as fallback
+                numeric_cols = [c for c in dil_df.columns if pd.api.types.is_numeric_dtype(dil_df[c])]
+                if not name_like and not numeric_cols:
+                    issues.append(
+                        "Dilutions sheet does not appear to contain any concentration/dilution columns. "
+                        "Expected a column with concentration/dilution values (name containing 'conc'/'dilut' or numeric values)."
+                    )
+                else:
+                    # decide which columns to treat as concentration columns (prefer name_like)
+                    conc_cols = name_like if name_like else numeric_cols[:1]
+
+                    # check for units: either in column header (e.g. "Concentration (mg/mL)" or "conc_mg_per_ml")
+                    unit_header_pattern = re.compile(
+                        r"\b(mg/?ml|ug/?ml|µg/?ml|ng/?ml|g/?ml|mM|uM|µM|M|mol/?L|mmol/?L|%|per ?ml)\b",
+                        re.I,
+                    )
+                    header_has_unit = any(bool(unit_header_pattern.search(str(c))) for c in conc_cols)
+
+                    # or a dedicated Unit/Units column with at least one non-empty value
+                    unit_col_candidates = [c for c in dil_df.columns if str(c).strip().lower() in ("unit", "units", "concentration unit")]
+                    unit_values_present = False
+                    if unit_col_candidates:
+                        uc = unit_col_candidates[0]
+                        unit_values_present = dil_df[uc].dropna().astype(str).str.strip().any()
+
+                    if not (header_has_unit or unit_values_present):
+                        issues.append(
+                            "Dilutions sheet: no concentration unit detected for the concentration column(s). "
+                            "Please include units (e.g. 'mg/mL' or 'mM') either in the column header "
+                            "(e.g. 'Concentration (mg/mL)') or add a 'Unit' column with values. "
+                        )
+    # Controls sheet -> must have a 'Position*' column
+    if "Controls" in available_sheets:
+        try:
+            ctrl_df = pd.read_excel(xls, "Controls")
+        except Exception:
+            issues.append("Could not read the 'Controls' sheet.")
+        else:
+            poscols = [c for c in ctrl_df.columns if str(c).startswith("Position")]
+            if not poscols:
+                issues.append(
+                    "Controls sheet must contain a column that starts with 'Position' "
+                    "(e.g. 'Position 96' or 'Position 384')."
+                )
+            else:
+                poscol = poscols[0]
+                # Validate format of position entries: letter(s) followed by digits
+                invalid_positions = []
+                for i, val in enumerate(ctrl_df[poscol].dropna().astype(str), start=1):
+                    if len(val) < 2:
+                        invalid_positions.append((i, val))
+                        continue
+                    row_letter = val[0]
+                    col_part = val[1:]
+                    if not row_letter.isalpha() or not col_part.isdigit():
+                        invalid_positions.append((i, val))
+                if invalid_positions:
+                    sample = ", ".join(f"{idx}:{v!r}" for idx, v in invalid_positions[:5])
+                    issues.append(
+                        f"Controls.{poscol} contains entries that are not in the expected "
+                        f"format (letter + digits). Sample invalid entries (row:index:value): {sample}. "
+                        "Positions should look like 'A1' or 'P24'."
+                    )
+
+    if issues:
+        raise ValueError(
+            "Input file validation failed. Please fix the following issues in the Excel file:\n- "
+            + "\n- ".join(issues)
+        )
+    
+
 def read_inputfile(inputfile_path: str, substance_id) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+# Validate file structure and content before attempting to parse
+    _validate_inputfile_structure(inputfile_path, substance_id)
 
     dtypes = { # define type dict to read the correct types from excel
         substance_id: str,
@@ -373,6 +546,70 @@ def read_inputfile(inputfile_path: str, substance_id) -> tuple[pd.DataFrame, pd.
     organisms["Organism formatted"] = organisms["Organism"].apply(format_organism_name)
     dilutions = pd.read_excel(inputfile_path, sheet_name="Dilutions", dtype=dtypes)
     controls = pd.read_excel(inputfile_path, sheet_name="Controls", dtype=dtypes)
+    def _split_unit_columns(dilutions: pd.DataFrame) -> pd.DataFrame:
+        """
+        Detect columns with units embedded in the header (e.g. "Concentration (mg/mL)"
+        or "Concentration in mg/mL") and normalize them by:
+        - renaming the value column to a sensible base name (e.g. "Concentration")
+        - adding a unit column (e.g. "Unit" or "<Base> Unit") with the detected unit
+        """
+        unit_header_re = re.compile(r"^(?P<name>.+?)\s*\((?P<unit>.+?)\)\s*$")
+        in_header_re = re.compile(r"^(?P<name>.+?)\s+in\s+(?P<unit>.+?)\s*$", re.I)
+
+        rename_map: dict[str, str] = {}
+        add_unit_cols: list[tuple[str, str]] = []
+
+        for col in list(dilutions.columns):
+            col_str = str(col).strip()
+
+            # handle "Name in Unit" first
+            m_in = in_header_re.match(col_str)
+            if m_in:
+                base = m_in.group("name").strip()
+                unit = m_in.group("unit").strip()
+                if base.lower() == "concentration":
+                    rename_map[col] = "Concentration"
+                    unit_col_name = "Unit"
+                else:
+                    new_base = base
+                    if new_base in dilutions.columns and new_base != col:
+                        rename_map[col] = col  # keep original
+                        unit_col_name = f"{col} Unit"
+                    else:
+                        rename_map[col] = new_base
+                        unit_col_name = f"{new_base} Unit"
+                add_unit_cols.append((unit_col_name, unit))
+                continue
+
+            # handle "Name (Unit)"
+            m = unit_header_re.match(col_str)
+            if m:
+                base = m.group("name").strip()
+                unit = m.group("unit").strip()
+                if base.lower() == "concentration":
+                    rename_map[col] = "Concentration"
+                    unit_col_name = "Unit"
+                else:
+                    new_base = base
+                    if new_base in dilutions.columns and new_base != col:
+                        rename_map[col] = col  # keep original
+                        unit_col_name = f"{col} Unit"
+                    else:
+                        rename_map[col] = new_base
+                        unit_col_name = f"{new_base} Unit"
+                add_unit_cols.append((unit_col_name, unit))
+
+        if rename_map:
+            dilutions = dilutions.rename(columns=rename_map)
+            for (unit_col_name, unit) in add_unit_cols:
+                if unit_col_name not in dilutions.columns:
+                    dilutions[unit_col_name] = unit
+
+        return dilutions
+
+    # normalize dilutions column headers and extract unit columns if present
+    dilutions = _split_unit_columns(dilutions)
+
 
     # Allow endings like 'Position 96', 'Position 384' etc.
     poscol = controls.columns[controls.columns.str.startswith("Position")][0]
