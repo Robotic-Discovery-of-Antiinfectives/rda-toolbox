@@ -22,7 +22,6 @@ from .plot import (
 from .process import (
         preprocess,
         mic_results,
-        mic_process_inputs,
         primary_process_inputs,
         )
 

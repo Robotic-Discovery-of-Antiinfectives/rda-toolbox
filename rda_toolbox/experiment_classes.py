@@ -34,7 +34,7 @@ from .parser import (
     parse_mappingfile,
     read_platemapping,
 )
-from .process import preprocess, get_thresholded_subset, mic_process_inputs, add_b_score
+from .process import preprocess, get_thresholded_subset, add_b_score
 from .plot import (
     plateheatmaps,
     UpSetAltair,
@@ -890,7 +890,6 @@ class MIC(Experiment):  # Minimum Inhibitory Concentration
         """
         Does mapping of the inputfile describing the tested substances with the
         corresponding mappingfile(s).
-        *Basically replaces rda.process.mic_process_inputs() function so all the variables and intermediate results are available via the class*
         """
 
         # Sorting of organisms via Rack is **very** important, otherwise data gets attributed to wrong organisms
