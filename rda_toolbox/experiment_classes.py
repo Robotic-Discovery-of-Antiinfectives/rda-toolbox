@@ -41,7 +41,8 @@ from .plot import (
     lineplots_facet,
     potency_distribution,
     measurement_vs_bscore_scatter,
-    ChartLike
+    ChartLike,
+    get_zfactor_heatmap,
 )
 
 logger = logging.getLogger(__name__)
@@ -468,6 +469,10 @@ class PrimaryScreen(Experiment):
         result_figures.append(
             Result("QualityControl", "plateheatmaps", figure=self.plateheatmap)
         )
+
+        result_figures.append(
+            Result("QualityControl", "zfactor_heatmap", figure=get_zfactor_heatmap(self.processed))
+        )
         # If precipitation testing was done, add it to QC result figures:
         if not self.precipitation.results.empty:
             result_figures.append(
@@ -678,6 +683,11 @@ class PrimaryScreen(Experiment):
                 unit_val = unit_values.dropna().iloc[0] if unit_values is not None and not unit_values.dropna().empty else None
                 if "Concentration" in results_sorted_by_mean_activity.columns:
                     concentration_idx = results_sorted_by_mean_activity.columns.get_loc("Concentration")
+                    if not isinstance(concentration_idx, (int, np.integer)):
+                        raise ValueError(
+                            "Expected exactly one 'Concentration' column when building the results table."
+                        )
+                    concentration_idx = int(concentration_idx)
                     before_cols = list(results_sorted_by_mean_activity.columns[: concentration_idx + 1])
                     after_cols = list(results_sorted_by_mean_activity.columns[concentration_idx + 1 :])
                     results_sorted_by_mean_activity = results_sorted_by_mean_activity.reindex(columns=before_cols + ["Concentration Unit"] + after_cols)
@@ -1021,6 +1031,9 @@ class MIC(Experiment):  # Minimum Inhibitory Concentration
         result_figures.append(
             Result("QualityControl", "plateheatmaps", figure=self.plateheatmap)
         )
+        result_figures.append(
+            Result("QualityControl", "zfactor_heatmap", figure=get_zfactor_heatmap(self.processed))
+        )
         if (self.substances_precipitation is not None) and (
             not self.substances_precipitation.empty
         ):
@@ -1033,7 +1046,6 @@ class MIC(Experiment):  # Minimum Inhibitory Concentration
             )
 
         # Save plots per dataset:
-
         processed_negative_zfactor = self._processed_only_substances[
             self._processed_only_substances["Z-Factor"] < 0
         ]
