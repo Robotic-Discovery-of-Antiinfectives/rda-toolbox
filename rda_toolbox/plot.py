@@ -13,6 +13,16 @@ from .process import (
 )
 
 
+ChartLike: TypeAlias = (  # type alias for various Altair chart subtypes
+    alt.Chart
+    | alt.LayerChart
+    | alt.ConcatChart
+    | alt.HConcatChart
+    | alt.VConcatChart
+    | alt.FacetChart
+)
+
+
 def get_heatmap(
     subdf: pd.DataFrame,
     substance_id: str,
@@ -120,13 +130,52 @@ def blank_heatmap(blank_df: pd.DataFrame) -> alt.LayerChart:
     return alt.layer(heatmap, text)
 
 
-ChartLike: TypeAlias = (  # type alias for various Altair chart subtypes
-    alt.Chart
-    | alt.LayerChart
-    | alt.ConcatChart
-    | alt.HConcatChart
-    | alt.VConcatChart
-    | alt.FacetChart
+def get_zfactor_heatmap(
+    df: pd.DataFrame,
+) -> ChartLike:
+    base = alt.Chart(
+        df,
+        width=600,
+        height=400,
+    ).encode(
+        alt.Y("MP Barcode 384:O").title(None),
+        alt.X("Organism:N").axis(labelAngle=-30, orient="top").title(None),
+        tooltip=list(df.columns),
+    )
+    zfact_heatmap = base.mark_rect().encode(
+        alt.Color(f"Z-Factor:Q")
+        .title("Z-Factor"),
+    )
+    zfact_text = base.mark_text(baseline="middle", align="center", fontSize=12).encode(
+        alt.Text(f"Z-Factor:Q", format=".1f"),
+        color=alt.condition(
+            alt.datum["Z-Factor"]
+            < max(df["Z-Factor"]) / 2,
+            alt.value("black"),
+            alt.value("white"),
+        ),
+    )
+
+    robustzfact_heatmap = base.mark_rect().encode(
+        alt.Color(f"Robust Z-Factor:Q")
+        .title("Robust Z-Factor"),
+    )
+    robustzfact_text = base.mark_text(baseline="middle", align="center", fontSize=12).encode(
+        alt.Text(f"Robust Z-Factor:Q", format=".1f"),
+        color=alt.condition(
+            alt.datum["Robust Z-Factor"]
+            < max(df["Robust Z-Factor"]) / 2,
+            alt.value("black"),
+            alt.value("white"),
+        ),
+    )
+    
+    return alt.hconcat(
+        alt.layer(zfact_heatmap, zfact_text),
+        alt.layer(robustzfact_heatmap, robustzfact_text)
+    ).configure_axis(
+        labelFontSize=20,
+        labelLimit=1000,
 )
 
 
