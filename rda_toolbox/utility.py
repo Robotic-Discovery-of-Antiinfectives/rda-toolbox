@@ -129,9 +129,21 @@ def mapapply_96_to_384(
 
 def position_to_rowcol(pos: str) -> tuple[str, int]:
     """
-    Splits a position like "A1" into row and col e.g. ("A", "1").
+    Splits a position like "A1" into row and col e.g. ("A", 1).
     """
-    return pos[0], int(pos[1:])
+    if not isinstance(pos, str):
+        raise TypeError("Position must be a string.")
+
+    if len(pos) < 2:
+        raise ValueError(f"Invalid plate position: {pos!r}")
+
+    row = pos[0]
+    col = pos[1:]
+
+    if not row.isalpha() or not col.isdigit():
+        raise ValueError(f"Invalid plate position: {pos!r}")
+
+    return row.upper(), int(col)
 
 
 def split_position(
@@ -139,14 +151,17 @@ def split_position(
     position: str = "Position",
     row: str = "Row_384",
     col: str = "Col_384",
+    copy: bool = True,
 ) -> pd.DataFrame:
     """
-    Split a position like "A1" into row and column positions ("A", 1) and adds them as columns to the DataFrame.
+    Split a position like "A1" into row and column positions ("A", 1) and adds them as columns to the DataFrame. Set `copy=True` to avoid mutating the provided DataFrame.
     Hint: Remove NAs before applying this function. E.g. `split_position(df.dropna(subset="Position"))`
     """
-    df[row] = df[position].apply(lambda x: str(x[0]))
-    df[col] = df[position].apply(lambda x: int(str(x[1:])))
-    return df
+    target_df = df.copy() if copy else df
+    parsed_positions = target_df[position].map(position_to_rowcol)
+    target_df[row] = parsed_positions.str.get(0)
+    target_df[col] = parsed_positions.str.get(1)
+    return target_df
 
 
 def get_selection(df, threshold_value, x_column="Relative Optical Density"):
