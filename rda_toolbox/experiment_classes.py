@@ -471,7 +471,7 @@ class PrimaryScreen(Experiment):
         )
 
         result_figures.append(
-            Result("QualityControl", "zfactor_heatmap", figure=get_zfactor_heatmap(self.processed))
+            Result("QualityControl", "zfactor_heatmap", figure=get_zfactor_heatmap(self.processed, y_rows=self._ast_barcode_header))
         )
         # If precipitation testing was done, add it to QC result figures:
         if not self.precipitation.results.empty:
