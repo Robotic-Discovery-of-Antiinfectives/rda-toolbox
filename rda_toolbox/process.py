@@ -99,6 +99,8 @@ def add_b_score(
     # We could also collect iterations of the median polish function and plot the results to show progress of normalization
     plate_df = median_polish_df(plate_df)
     mad_value = median_absolute_deviation(plate_df[measurement_header], scale=1.4826)
+    if not np.isfinite(mad_value) or np.isclose(mad_value, 0.0):
+        raise ValueError("Median absolute deviation is zero; cannot compute B-scores.")
     plate_df["b_scores"] = plate_df[measurement_header] / mad_value
     return plate_df.drop(
         columns=["row_effect", "col_effect", "row_median", "col_median", measurement_header]
@@ -134,7 +136,20 @@ def background_normalize_zfactor(
     *in the input DataFrame as 'Medium'.*
     """
 
-    plate_blanks_mean = grp[grp[substance_id] == blanks][f"Raw {measurement}"].mean()
+    plate_neg_controls = grp[grp[substance_id] == negative_controls][
+        f"Raw {measurement}"
+    ]
+    plate_blank_controls = grp[grp[substance_id] == blanks][f"Raw {measurement}"]
+
+    # Check inputs :)
+    if len(plate_neg_controls) == 0:
+        raise KeyError("Please check if keyword 'negative_controls' is matching with input table.")
+    if len(plate_blank_controls) == 0:
+        raise KeyError("Please check if keyword 'blanks' is matching with input table.")
+
+    plate_blanks_mean = plate_blank_controls.mean()
+    if not np.isfinite(plate_blanks_mean):
+        raise ValueError("Blank controls contain non-finite values.")
     # Subtract background noise:
     grp[f"Denoised {measurement}"] = grp[f"Raw {measurement}"] - plate_blanks_mean
     plate_denoised_negative_mean = grp[grp[substance_id] == negative_controls][
@@ -143,22 +158,18 @@ def background_normalize_zfactor(
     plate_denoised_blank_mean = grp[grp[substance_id] == blanks][
         f"Denoised {measurement}"
     ].mean()
+    if not np.isfinite(plate_denoised_negative_mean) or np.isclose(
+        plate_denoised_negative_mean, 0.0
+    ):
+        plate_label = grp[norm_by_barcode].iat[0] if norm_by_barcode in grp else "Unknown"
+        raise ValueError(
+            f"Plate {plate_label} cannot be normalized: negative controls after background subtraction have near-zero mean."
+        )
     # Normalize:
-    grp[f"Relative {measurement}"] = grp[f"Denoised {measurement}"].apply(
-        lambda x: max_normalization(x, plate_denoised_negative_mean)
-    )
+    grp[f"Relative {measurement}"] = (
+        grp[f"Denoised {measurement}"] / plate_denoised_negative_mean
+    ) * 100
     # Z-Factor:
-    plate_neg_controls = grp[grp[substance_id] == negative_controls][
-        f"Raw {measurement}"
-    ]
-    plate_blank_controls = grp[grp[substance_id] == blanks][f"Raw {measurement}"]
-
-    # Check inputs :)
-    if (len(plate_neg_controls) == 0):
-        raise KeyError("Please check if keyword 'negative_controls' is matching with input table.")
-    elif (len(plate_blank_controls) == 0):
-        raise KeyError("Please check if keyword 'blanks' is matching with input table.")
-
     grp["Z-Factor"] = zfactor(plate_neg_controls, plate_blank_controls)
 
     # Robust Z-Factor using median instead of mean:
