@@ -10,15 +10,30 @@ import rda_toolbox as rda
 primary = rda.PrimaryScreen(
     "../data/raw/",  # Folder where the raw readerfiles are located
     "../data/input/PrS_Input.xlsx",  # Assay specific Input sheet
-    "../data/input/AmA_AsT_AcD_20241204.txt",  # Mapping file
+    "../data/input/AmA_AsT_AcD_20241204.txt",  # Mapping file (MP -> AcD plates)
     map_rowname="Row 96",
     map_colname="Col 96",
-    measurement_label="Raw Optical Density",
     # Folder where the raw readerfiles for precipitation test are located
     precipitation_rawfilepath = "../data/raw/Precipitation_measurements/"
 )
 ```
 
+### Compounds already in 384-well plates
+Example without mapping from 96 to 384 (motherplate barcode is reused as AsT Barcode):
+
+```Python
+import rda_toolbox as rda
+
+primary = rda.PrimaryScreen(
+    "../data/raw/",
+    "../data/input/PrS_Input.xlsx",
+    mappingfile_path = "../data/input/AmA_AsT_AcD_20251202.txt",  # Contains mapping of AsT -> AcD plates
+    needs_mapping=False,
+    precipitation_rawfilepath="../data/raw/Precipitation/",
+    substance_id="Internal ID",
+    ast_barcode_header="MP Barcode 384"  # Motherplate is reused as AsT Barcode
+)
+```
 
 Its possible to inspect the assay object:
 
@@ -60,4 +75,3 @@ primary.save_results(<tables path>, <figures path>, <processed data path>, figur
 ```
 
 # Primary Screen Results
-
