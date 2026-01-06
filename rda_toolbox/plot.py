@@ -77,8 +77,8 @@ def plateheatmaps(
     `df[df["Organism"] != "Blank"]`
     before plotting, otherwise it will appear as an extra plate.
     """
+    df = df.copy()
     df["Col_384"] = df["Col_384"].astype(int)
-    # df[substance_id] = df[substance_id].astype(str)
     plots = []
     for _, _organism_df in df.groupby("Organism"):
         plots.append(
@@ -132,14 +132,16 @@ def blank_heatmap(blank_df: pd.DataFrame) -> alt.LayerChart:
 
 def get_zfactor_heatmap(
     df: pd.DataFrame,
+    y_rows: str = "AsT Barcode 384",
+    x_cols: str = "Organism",
 ) -> ChartLike:
     base = alt.Chart(
         df,
         width=600,
         height=400,
     ).encode(
-        alt.Y("MP Barcode 384:O").title(None),
-        alt.X("Organism:N").axis(labelAngle=-30, orient="top").title(None),
+        alt.Y(f"{y_rows}:O").title(None),
+        alt.X(f"{x_cols}:N").axis(labelAngle=-30, orient="top").title(None),
         tooltip=list(df.columns),
     )
     zfact_heatmap = base.mark_rect().encode(
