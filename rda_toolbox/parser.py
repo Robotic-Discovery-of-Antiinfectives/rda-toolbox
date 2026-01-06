@@ -4,7 +4,7 @@
 import re
 
 # from pathlib import Path
-from io import BytesIO, StringIO
+from typing import IO
 
 # System
 # from os import listdir, makedirs
@@ -15,7 +15,7 @@ from os.path import basename  # , exists, isfile, join
 import numpy as np
 import pandas as pd
 
-from .utility import get_rows_cols, format_organism_name
+from .utility import get_rows_cols, format_organism_name, position_to_rowcol
 
 # from functools import reduce
 
@@ -24,7 +24,7 @@ from .utility import get_rows_cols, format_organism_name
 
 
 def readerfile_parser(
-    filename: str, file_object: StringIO, resulttable_header: str = "Results"
+    filename: str, file_object: IO[str], resulttable_header: str = "Results"
 ) -> dict:
     """
     Parser for files created by the BioTek Cytation C10 Confocal Imaging Reader.
@@ -137,10 +137,11 @@ def filepaths_to_filedicts(filepaths: list[str]) -> list[dict]:
     """
     filedicts = []
     for path in filepaths:
-        file = open(path)
-        contents = StringIO(file.read())
-        filedicts.append(readerfile_parser(basename(path), contents))
-        file.close()
+        try:
+            with open(path, encoding="utf-8", errors="ignore") as fh:
+                filedicts.append(readerfile_parser(basename(path), fh))
+        except OSError as exc:
+            raise OSError(f"Failed to read {path!r}: {exc}") from exc
     return filedicts
 
 
@@ -613,8 +614,8 @@ def read_inputfile(inputfile_path: str, substance_id) -> tuple[pd.DataFrame, pd.
 
     # Allow endings like 'Position 96', 'Position 384' etc.
     poscol = controls.columns[controls.columns.str.startswith("Position")][0]
-    controls["Row_384"] = controls[poscol].apply(lambda x: str(x[0]))
-    controls["Col_384"] = controls[poscol].apply(lambda x: int(x[1:]))
+    controls["Row_384"] = controls[poscol].apply(lambda x: position_to_rowcol(x)[0])
+    controls["Col_384"] = controls[poscol].apply(lambda x: position_to_rowcol(x)[1])
     controls.drop(columns=poscol, inplace=True)
 
     return substances, organisms, dilutions, controls
