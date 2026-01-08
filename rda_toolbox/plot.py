@@ -173,8 +173,8 @@ def get_zfactor_heatmap(
     )
     
     return alt.hconcat(
-        alt.layer(zfact_heatmap, zfact_text),
-        alt.layer(robustzfact_heatmap, robustzfact_text)
+        alt.layer(zfact_heatmap, zfact_text).properties(title=alt.Title("Z-Factor", fontSize=20)),
+        alt.layer(robustzfact_heatmap, robustzfact_text).properties(title=alt.Title("Robust Z-Factor", fontSize=20)),
     ).configure_axis(
         labelFontSize=20,
         labelLimit=1000,
