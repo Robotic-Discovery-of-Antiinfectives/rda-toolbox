@@ -136,16 +136,23 @@ def background_normalize_zfactor(
     *in the input DataFrame as 'Medium'.*
     """
 
-    plate_neg_controls = grp[grp[substance_id] == negative_controls][
-        f"Raw {measurement}"
-    ]
-    plate_blank_controls = grp[grp[substance_id] == blanks][f"Raw {measurement}"]
+    # Work on a copy and ensure the measurement column is numeric so subtraction is supported
+    grp = grp.copy()
+    raw_col = f"Raw {measurement}"
+    if raw_col not in grp:
+        raise KeyError(f"Column '{raw_col}' not found in input DataFrame.")
+    grp[raw_col] = pd.to_numeric(grp[raw_col], errors="coerce")
+
+    plate_neg_controls = grp[grp[substance_id] == negative_controls][raw_col]
+    plate_blank_controls = grp[grp[substance_id] == blanks][raw_col]
 
     # Check inputs :)
     if len(plate_neg_controls) == 0:
         raise KeyError("Please check if keyword 'negative_controls' is matching with input table.")
     if len(plate_blank_controls) == 0:
         raise KeyError("Please check if keyword 'blanks' is matching with input table.")
+    if grp[raw_col].isna().all():
+        raise ValueError("Raw measurement column contains no numeric values.")
 
     plate_blanks_mean = plate_blank_controls.mean()
     if not np.isfinite(plate_blanks_mean):
