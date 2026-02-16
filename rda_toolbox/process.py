@@ -4,6 +4,7 @@ import numpy as np
 import pandas as pd
 import os
 import pathlib
+import warnings
 
 from scipy.stats import median_abs_deviation
 
@@ -231,11 +232,13 @@ def preprocess(
     # detect and report NA values (defined in input, not in raw data)
     orgs_w_missing_data = df[df[f"Raw {measurement}"].isna()]["Organism formatted"].unique()
     if orgs_w_missing_data.size > 0:
-        print(
+        warnings.warn(
             f"""Processed data:
       Organisms with missing data, excluded from processed data: {orgs_w_missing_data}.
       If this is not intended, please check the Input.xlsx or if raw data files are complete.
-              """
+              """,
+            RuntimeWarning,
+            stacklevel=2,
         )
         df = df.dropna(subset=[f"Raw {measurement}"])
     # Report missing
