@@ -71,7 +71,7 @@ primary.save_tables("../data/results/")
 # Save all figures
 primary.save_figures("../figures/")
 # Save results (figures and tables)
-primary.save_results(<tables path>, <figures path>, <processed data path>, figureformats=["svg, html"], tableformats=["xlsx", "csv"])
+primary.save_results(<tables path>, <figures path>, <processed data path>, figureformats=["svg", "html"], tableformats=["xlsx", "csv"])
 ```
 
 # Primary Screen Results
