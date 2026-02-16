@@ -8,6 +8,8 @@ import numpy as np
 import logging
 from typing import Optional, List, Dict
 
+import warnings
+
 import os
 import pathlib
 
@@ -79,6 +81,24 @@ class Experiment:
             self.rawdata, self.metadata = parse_readerfiles(
                 rawfiles_folderpath
             )  # Get rawdata, this will later be overwritten by adding precipitation, if available
+
+# TODO: Add a Report with the following specifications:
+# - Add Report to MIC and PrimaryScreen classes
+# - Include all relevant experimental conditions
+# - Include all results
+# - Include all metadata
+# - Include all quality control plots and tables
+# - Include plots and tables in a structured way
+# - Structure the report in a way that is easy to navigate and understand
+# - Focus on scientific practices, clarity and reproducibility
+# - Include all warnings and potential issues in the report
+#   - regarding precipitation
+#   - regarding OVRFLW errors (with info on rawdata filename and position in the layout)
+# - Save it as a PDF or HTML file (or DOCX if possible) in the result directory
+
+# TODO: Add the option to add a filepath for a chemical structure information file (e.g. SMILES in an excel or csv, .SDF file with molblocks, etc.) and parse it into a DataFrame that can be merged with the inputfile substances and later added to the results tables and plots.
+# Convert the given format (SMILES, SDF molblock, etc.) into an InChI and InChI-Key (using RDKit) and add hover information (tooltip) with the chemical structure (using utility.py's imgbuffer_to_imgstr function) to the plots (e.g. QC heatmaps, scatterplots, etc.) and add the InChI and InChI-Key to the results tables for better interpretability and potential further use in cheminformatics pipelines.
+
 
     # def save_results(
     #     self,
@@ -176,14 +196,13 @@ class Precipitation(Experiment):
                     )
                 self.rawdata_w_layout.drop(self._outlier.index, inplace=True)
             else:
-                print(
-                    "Precipitation background outliers detected,\n",
-                    "consider excluding them explicitly via the `background_locations` argument specification\n",
+                warnings.warn(
+                    "Precipitation background outliers detected,\n"
+                    "consider excluding them explicitly via the `background_locations` argument specification\n"
                     "or setting the `exclude_outlier` argument flag to `True`",
-                    sep="",
+                    RuntimeWarning,
+                    stacklevel=2,
                 )
-        # print(self.get_results())
-        # self.results = self.get_results()
 
     @property
     def limit_of_quantification(self):  # "Bestimmungsmaß"
@@ -277,6 +296,7 @@ class PrimaryScreen(Experiment):
         blanks: str = "Medium",
         norm_by_barcode: str = "AcD Barcode 384",
         ast_barcode_header: str = "AsT Barcode 384",
+        ast_position_header: str = "AsT Position 384",
         thresholds: list[float] | None = None,
         b_score_threshold: float = -3.0,
         precipitation_rawfilepath: str | None = None,
@@ -298,7 +318,7 @@ class PrimaryScreen(Experiment):
             q_name=q_name,
         ) if needs_mapping else split_position(
             self._substances_unmapped,
-            position="MP Position 384",
+            position=ast_position_header,  # "MP Position 384",
             row="Row_384",
             col="Col_384"
             )
@@ -306,11 +326,19 @@ class PrimaryScreen(Experiment):
         self._mapping_df = parse_mappingfile(
             mappingfile_path,
             motherplate_column=ast_barcode_header,
-            childplate_column="AcD Barcode 384",
+            childplate_column=norm_by_barcode,  # "AcD Barcode 384",
         )
         self._mapping_dict = get_mapping_dict(self._mapping_df, mother_column=ast_barcode_header)
         # self._substance_id = substance_id
+        if negative_controls not in self._controls["Internal ID"].values:
+            raise ValueError(
+                f"negative_controls '{negative_controls}' not found in controls 'Internal ID' column.\nConsider changing the 'negative_controls' keyword to a value in the input excel."
+            )
         self._negative_controls = negative_controls
+        if blanks not in self._controls["Internal ID"].values:
+            raise ValueError(
+                f"blanks '{blanks}' not found in controls 'Internal ID' column.\nConsider changing the 'blanks' keyword to a value in the input excel."
+            )
         self._blanks = blanks
         self._norm_by_barcode = norm_by_barcode
         self._ast_barcode_header = ast_barcode_header
@@ -413,6 +441,10 @@ class PrimaryScreen(Experiment):
                 )
             ]
         )
+        if result_df.empty:
+            raise ValueError(
+                "After mapping the input substances to the rawdata, the resulting DataFrame is empty.\nThis means that no data points could be attributed to any substance.\nPlease check if the mappingfiles and inputfile are correct and consistent with each other."
+            )
 
         for ast_barcode, ast_plate in result_df.groupby(self._ast_barcode_header):
             logger.info(
@@ -605,6 +637,7 @@ class PrimaryScreen(Experiment):
                 dataset_name = str(dataset)
                 if not self.precipitation.results.empty and not self.substances_precipitation is None:
                     dataset_grp = pd.merge(dataset_grp, self.substances_precipitation, how="outer")
+                    dataset_grp = dataset_grp[dataset_grp["Relative Optical Density mean"].notna()]
 
                 result_tables.append(
                     Result(dataset_name, f"{dataset_name}_all_results", table=dataset_grp)
