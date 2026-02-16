@@ -10,6 +10,7 @@ from typing import IO
 # from os import listdir, makedirs
 import os
 from os.path import basename  # , exists, isfile, join
+import warnings
 
 # import openpyxl
 import numpy as np
@@ -17,10 +18,35 @@ import pandas as pd
 
 from .utility import get_rows_cols, format_organism_name, position_to_rowcol
 
-# from functools import reduce
 
 
-# import string
+def _safe_float(
+    value: str,
+    filename: str,
+    overflow_events: list[dict] | None = None,
+    table: str | None = None,
+    row: str | None = None,
+    col: int | None = None,
+) -> float:
+    """Convert Cytation result tokens to float; return NaN for non-numeric sentinels."""
+    token = value.strip()
+    if token == "":
+        return np.nan
+    try:
+        return float(token)
+    except ValueError:
+        # Reader exports can contain sentinel values such as OVRFLW.
+        if token.upper() == "OVRFLW" and overflow_events is not None:
+            overflow_events.append(
+                {
+                    "Reader Filename": filename,
+                    "Table": table,
+                    "Row": row,
+                    "Column": col,
+                    "Token": token,
+                }
+            )
+        return np.nan
 
 
 def readerfile_parser(
@@ -56,7 +82,9 @@ def readerfile_parser(
         filedict["Barcode"] = barcode_found[0]
     # filedict["Barcode"] = Path(filedict["Reader Filename"]).stem.split("_")[-1]
 
+    overflow_events = []
     results = np.empty([num_rows, num_columns], dtype=float)
+    overflow_results = np.zeros([num_rows, num_columns], dtype=bool)
     # using dtype=str results in unicode strings of length 1 ('U1'), therefore we use 'U25'
     layout = np.empty([num_rows, num_columns], dtype="U25")
     concentrations = np.empty([num_rows, num_columns], dtype=float)
@@ -74,11 +102,30 @@ def readerfile_parser(
                 line_num += 1
                 res_line = lines[line_num].split(";")
                 # Split at ; and slice off rowlabel and excitation/emission value:
-                index[_row_num] = res_line[0]
-                results[_row_num] = res_line[1:-1]
+                row_name = res_line[0]
+                index[_row_num] = row_name
+                parsed_row = []
+                overflow_row = []
+                for _col_idx, token in enumerate(res_line[1:-1]):
+                    col_value = header[_col_idx] if _col_idx < len(header) else None
+                    parsed_value = _safe_float(
+                        token,
+                        filename,
+                        overflow_events=overflow_events,
+                        table="Raw Optical Density",
+                        row=row_name,
+                        col=col_value,
+                    )
+                    parsed_row.append(parsed_value)
+                    overflow_row.append(token.strip().upper() == "OVRFLW")
+                results[_row_num] = parsed_row
+                overflow_results[_row_num] = overflow_row
             # Initialize DataFrame from results and add it to filedict
             filedict["Raw Optical Density"] = pd.DataFrame(
                 data=results, index=index, columns=header
+            )
+            filedict["Overflow Raw Optical Density"] = pd.DataFrame(
+                data=overflow_results, index=index, columns=header
             )
             line_num += 1
         elif lines[line_num] == "Layout":  # For the next num_rows, read layout data
@@ -96,7 +143,15 @@ def readerfile_parser(
                 line_num += 1
                 conc_line = lines[line_num].split(";")
                 concentrations[_row_num] = [
-                    None if not x else float(x) for x in conc_line[1:-1]
+                    _safe_float(
+                        x,
+                        filename,
+                        overflow_events=overflow_events,
+                        table="Concentration",
+                        row=index[_row_num],
+                        col=header[_col_idx] if _col_idx < len(header) else None,
+                    )
+                    for _col_idx, x in enumerate(conc_line[1:-1])
                 ]
             # Add layouts to filedict
             filedict["Layout"] = pd.DataFrame(data=layout, index=index, columns=header)
@@ -118,6 +173,7 @@ def readerfile_parser(
                     else:
                         metadata[key.strip(" :")] = value.strip(" ")
     filedict["metadata"] = metadata
+    filedict["overflow_events"] = overflow_events
     return filedict
 
 
@@ -162,7 +218,7 @@ def collect_results(filedicts: list[dict]) -> pd.DataFrame:
     Collect and merge results from the readerfiles.
     """
     allresults_df = pd.DataFrame(
-        {"Row": [], "Column": [], "Raw Optical Density": []}
+        {"Row": [], "Column": [], "Raw Optical Density": [], "Overflow": []}
     )  # , "Layout": [], "Concentration": []})
     platetype_s = list(set(fd["plate_type"] for fd in filedicts))
     if len(platetype_s) == 1:
@@ -171,9 +227,6 @@ def collect_results(filedicts: list[dict]) -> pd.DataFrame:
         raise Exception(f"Different plate types used {platetype_s}")
 
     for filedict in filedicts:
-        # long_layout_df = get_long_df("Layout")
-        # long_concentrations_df = get_long_df("Concentration")
-        # long_rawdata_df = get_long_df("Raw Optical Density")
 
         long_rawdata_df = pd.melt(
             filedict["Raw Optical Density"].reset_index(names="Row"),
@@ -181,6 +234,13 @@ def collect_results(filedicts: list[dict]) -> pd.DataFrame:
             var_name="Column",
             value_name="Raw Optical Density",
         )
+        long_overflow_df = pd.melt(
+            filedict["Overflow Raw Optical Density"].reset_index(names="Row"),
+            id_vars=["Row"],
+            var_name="Column",
+            value_name="Overflow",
+        )
+        long_rawdata_df["Overflow"] = long_overflow_df["Overflow"].astype(bool).values
 
         long_rawdata_df["Barcode"] = filedict["Barcode"]
         # df_merged = reduce(
@@ -232,6 +292,21 @@ def readerfiles_rawdf(paths: list[str]) -> pd.DataFrame:
     """
     filedicts = filepaths_to_filedicts(paths)
     rawdata = collect_results(filedicts)
+    overflow_count = int(rawdata["Overflow"].sum()) if "Overflow" in rawdata.columns else 0
+    if overflow_count > 0:
+        affected_files = {
+            event["Reader Filename"]
+            for filedict in filedicts
+            for event in filedict.get("overflow_events", [])
+        }
+        warnings.warn(
+            f"Detected {overflow_count} OVRFLW value(s) in reader files "
+            f"({", ".join(affected_files)})"
+            f"({len(affected_files)} file(s)). Values were set to NaN. "
+            "Inspect rows where rawdata['Overflow'] is True for details.",
+            RuntimeWarning,
+            stacklevel=2,
+        )
     rawdata["Col_384"] = rawdata["Col_384"].astype(str)
     rawdata.rename(columns={"Barcode": "AcD Barcode 384"}, inplace=True)
     return rawdata
@@ -263,15 +338,6 @@ def process_inputfile(file_object):
     substance_df = pd.read_excel(excel_file, "substances")
     layout_df = pd.read_excel(excel_file, "layout")
     df = pd.merge(layout_df, substance_df, how="cross")
-    # df.rename(columns={
-    #     "barcode": "Barcode",
-    #     "replicate": "Replicate",
-    #     "organism": "Organism",
-    #     "plate_row": "Row_384",
-    #     "plate_column": "Col_384",
-    #     "id": "ID",
-    #     "concentration": "Concentration in mg/mL",
-    # }, inplace=True)
     df["ID"] = df["ID"].astype(str)
     return df
 
@@ -400,11 +466,13 @@ def _validate_inputfile_structure(inputfile_path: str, substance_id: str) -> Non
                         issues.append(
                             f"Substances.{substance_id} contains empty values. Every substance must have an ID."
                         )
+                    # TODO: Allow duplicates if they are References (Dataset == "Reference")
+                    # What would be a good way to handle duplicate references?
                     dup_mask = subs_df[substance_id].duplicated(keep=False)
                     if dup_mask.any():
-                        example_dups = subs_df.loc[dup_mask, substance_id].astype(str).unique()[:5]
+                        duplicates = subs_df.loc[dup_mask, substance_id].astype(str).unique()[:5]
                         issues.append(
-                            f"Substances.{substance_id} contains duplicate IDs. Example duplicates: {', '.join(map(str, example_dups))}."
+                            f"Substances.{substance_id} contains duplicate IDs. Duplicates: {', '.join(map(str, duplicates))}."
                         )
                     
 
