@@ -143,7 +143,6 @@ def background_normalize_zfactor(
     if raw_col not in grp:
         raise KeyError(f"Column '{raw_col}' not found in input DataFrame.")
     grp[raw_col] = pd.to_numeric(grp[raw_col], errors="coerce")
-
     plate_neg_controls = grp[grp[substance_id] == negative_controls][raw_col]
     plate_blank_controls = grp[grp[substance_id] == blanks][raw_col]
 
