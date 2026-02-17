@@ -311,17 +311,37 @@ class PrimaryScreen(Experiment):
         self._substances_unmapped, self._organisms, self._dilutions, self._controls = (
             read_inputfile(inputfile_path, substance_id)
         )
-        self.substances = mapapply_96_to_384(
-            self._substances_unmapped,
-            rowname=map_rowname,
-            colname=map_colname,
-            q_name=q_name,
-        ) if needs_mapping else split_position(
-            self._substances_unmapped,
-            position=ast_position_header,  # "MP Position 384",
-            row="Row_384",
-            col="Col_384"
+        if needs_mapping and (
+            not map_rowname
+            or not map_colname
+            or map_rowname not in self._substances_unmapped.columns
+            or map_colname not in self._substances_unmapped.columns
+        ):
+            self._substances_unmapped = split_position(
+                self._substances_unmapped,
+                position="Origin Position 96",
+                row="Row_96",
+                col="Col_96",
+                copy=False,
             )
+            map_rowname = "Row_96"
+            map_colname = "Col_96"
+
+        self.substances = (
+            mapapply_96_to_384(
+                self._substances_unmapped,
+                rowname=map_rowname,
+                colname=map_colname,
+                q_name=q_name,
+            )
+            if needs_mapping
+            else split_position(
+                self._substances_unmapped,
+                position=ast_position_header,  # "MP Position 384",
+                row="Row_384",
+                col="Col_384"
+            )
+        )
 
         self._mapping_df = parse_mappingfile(
             mappingfile_path,
@@ -597,10 +617,10 @@ class PrimaryScreen(Experiment):
         result_tables = []
         # result_tables.append(Result("All", ))
 
-        df = self.processed.copy()
+        df = self.processed.copy().round(2)
         df = df[
-            (df["Dataset"] != "Reference")
-            & (df["Dataset"] != "Positive Control")
+            #(df["Dataset"] != "Reference")
+            (df["Dataset"] != "Positive Control")
             & (df["Dataset"] != "Blank")
         ].dropna(subset=["Concentration"])
 
@@ -618,6 +638,7 @@ class PrimaryScreen(Experiment):
                 "Organism formatted",
                 "Organism",
                 "Concentration",
+                "Unit",
                 "Dataset",
             ],
             aggfunc={
@@ -628,7 +649,7 @@ class PrimaryScreen(Experiment):
                 "Z-Factor": ["mean"],
                 "Robust Z-Factor": ["mean"],
             },
-        ).reset_index()
+        ).reset_index().round(2)
         pivot_df.columns = [" ".join(x).strip() for x in pivot_df.columns.ravel()]
 
         for threshold in self.thresholds:
@@ -657,7 +678,7 @@ class PrimaryScreen(Experiment):
                 pivot_multiindex_df = pd.pivot_table(
                     thresholded_dataset_grp,
                     values=["Relative Optical Density mean", "Z-Factor mean"],
-                    index=["Internal ID", "Dataset", "Concentration"],
+                    index=["Internal ID", "Dataset", "Concentration", "Unit"],
                     columns="Organism formatted",
                 ).reset_index()
 
@@ -712,21 +733,21 @@ class PrimaryScreen(Experiment):
                 )  # Fill NA for better excel readability
 
                 # Add Concentration Unit column if available
-                unit_values = self._dilutions.get("Unit")
-                unit_val = unit_values.dropna().iloc[0] if unit_values is not None and not unit_values.dropna().empty else None
-                if "Concentration" in results_sorted_by_mean_activity.columns:
-                    concentration_idx = results_sorted_by_mean_activity.columns.get_loc("Concentration")
-                    if not isinstance(concentration_idx, (int, np.integer)):
-                        raise ValueError(
-                            "Expected exactly one 'Concentration' column when building the results table."
-                        )
-                    concentration_idx = int(concentration_idx)
-                    before_cols = list(results_sorted_by_mean_activity.columns[: concentration_idx + 1])
-                    after_cols = list(results_sorted_by_mean_activity.columns[concentration_idx + 1 :])
-                    results_sorted_by_mean_activity = results_sorted_by_mean_activity.reindex(columns=before_cols + ["Concentration Unit"] + after_cols)
-                    results_sorted_by_mean_activity["Concentration Unit"] = unit_val
-                else:
-                    results_sorted_by_mean_activity["Concentration Unit"] = unit_val
+                # unit_values = self._dilutions.get("Unit")
+                # unit_val = unit_values.dropna().iloc[0] if unit_values is not None and not unit_values.dropna().empty else None
+                # if "Concentration" in results_sorted_by_mean_activity.columns:
+                #     concentration_idx = results_sorted_by_mean_activity.columns.get_loc("Concentration")
+                #     if not isinstance(concentration_idx, (int, np.integer)):
+                #         raise ValueError(
+                #             "Expected exactly one 'Concentration' column when building the results table."
+                #         )
+                #     concentration_idx = int(concentration_idx)
+                #     before_cols = list(results_sorted_by_mean_activity.columns[: concentration_idx + 1])
+                #     after_cols = list(results_sorted_by_mean_activity.columns[concentration_idx + 1 :])
+                #     results_sorted_by_mean_activity = results_sorted_by_mean_activity.reindex(columns=before_cols + ["Concentration Unit"] + after_cols)
+                #     results_sorted_by_mean_activity["Concentration Unit"] = unit_val
+                # else:
+                #     results_sorted_by_mean_activity["Concentration Unit"] = unit_val
 
 
                 result_tables.append(
@@ -781,6 +802,9 @@ class MIC(Experiment):  # Minimum Inhibitory Concentration
         map_rowname: str = "Row_96",
         map_colname: str = "Col_96",
         q_name: str = "Quadrant",
+        mp_barcode_header: str = "MP Barcode 96",
+        mp_position_header: str = "MP Position 96",
+        # ast_barcode_header: str = "AsT Barcode 384",
         substance_id: str = "Internal ID",
         negative_controls: str = "Bacteria + Medium",
         blanks: str = "Medium",
@@ -799,6 +823,8 @@ class MIC(Experiment):  # Minimum Inhibitory Concentration
         self._mp_ast_mapping_filepath = mp_ast_mapping_filepath
         self._ast_acd_mapping_filepath = ast_acd_mapping_filepath
         self._measurement_label = measurement_label
+        self._mp_barcode_header = mp_barcode_header
+        self._mp_position_header = mp_position_header
         self.precipitation = (
             Precipitation(
                 precipitation_rawfilepath,
@@ -890,15 +916,82 @@ class MIC(Experiment):  # Minimum Inhibitory Concentration
 
 
 
+    def _validate_mapping_dicts(self, mp_ast_mapping_dict, ast_acd_mapping_dict):
+        invalid_mp_ast = sorted(
+            {
+                str(ast_barcode)
+                for ast_barcodes in mp_ast_mapping_dict.values()
+                for ast_barcode in ast_barcodes
+                if pd.isna(ast_barcode) or not str(ast_barcode).strip()
+            }
+        )
+        invalid_ast_acd_keys = sorted(
+            {
+                str(ast_barcode)
+                for ast_barcode in ast_acd_mapping_dict
+                if pd.isna(ast_barcode) or not str(ast_barcode).strip()
+            }
+        )
+        invalid_acd_barcodes = sorted(
+            {
+                str(acd_barcode)
+                for acd_barcodes in ast_acd_mapping_dict.values()
+                for acd_barcode in acd_barcodes
+                if pd.isna(acd_barcode) or not str(acd_barcode).strip()
+            }
+        )
+        ast_acd_keys = set(ast_acd_mapping_dict)
+        missing_ast_mappings = sorted(
+            {
+                str(ast_barcode)
+                for ast_barcodes in mp_ast_mapping_dict.values()
+                for ast_barcode in ast_barcodes
+                if ast_barcode not in ast_acd_keys
+            }
+        )
+
+        if (
+            invalid_mp_ast
+            or invalid_ast_acd_keys
+            or invalid_acd_barcodes
+            or missing_ast_mappings
+        ):
+            details = []
+            if missing_ast_mappings:
+                details.append(
+                    "AsT barcodes missing in AsT -> AcD mapping: "
+                    + ", ".join(map(str, missing_ast_mappings[:10]))
+                )
+            if invalid_mp_ast:
+                details.append(
+                    "Invalid AsT barcodes in MP -> AsT mapping: "
+                    + ", ".join(map(str, invalid_mp_ast[:10]))
+                )
+            if invalid_ast_acd_keys:
+                details.append(
+                    "Invalid AsT barcodes in AsT -> AcD mapping: "
+                    + ", ".join(map(str, invalid_ast_acd_keys[:10]))
+                )
+            if invalid_acd_barcodes:
+                details.append(
+                    "Invalid AcD barcodes in AsT -> AcD mapping: "
+                    + ", ".join(map(str, invalid_acd_barcodes[:10]))
+                )
+            raise ValueError(
+                "Inconsistent mapping between MP -> AsT and AsT -> AcD mapping files. "
+                "Please check the mapping .txt files.\n"
+                + "\n".join(details)
+            )
+
     @property
     def _mapping_dict(self):
         mp_ast_mapping_dict = get_mapping_dict(
             parse_mappingfile(
                 self._mp_ast_mapping_filepath,
-                motherplate_column="MP Barcode 96",
+                motherplate_column=self._mp_barcode_header, 
                 childplate_column="AsT Barcode 384",
             ),
-            mother_column="MP Barcode 96",
+            mother_column=self._mp_barcode_header,
             child_column="AsT Barcode 384",
         )
         ast_acd_mapping_dict = get_mapping_dict(
@@ -911,6 +1004,9 @@ class MIC(Experiment):  # Minimum Inhibitory Concentration
             child_column="AcD Barcode 384",
         )
         mapping_dict = {}
+        # print("MP -> AsT mapping: ", mp_ast_mapping_dict)
+        # print("AsT -> AcD mapping: ", ast_acd_mapping_dict)
+        self._validate_mapping_dicts(mp_ast_mapping_dict, ast_acd_mapping_dict)
         for mp_barcode, ast_barcodes in mp_ast_mapping_dict.items():
             tmp_dict = {}
             for ast_barcode in ast_barcodes:
@@ -930,16 +1026,19 @@ class MIC(Experiment):  # Minimum Inhibitory Concentration
         formatted_organisms = list(self._organisms.sort_values(by="Rack")["Organism formatted"])
 
 
+        orig_barcodes = list(map(str, self._substances_unmapped[self._mp_barcode_header].unique()))
+        with open(self._mp_ast_mapping_filepath) as file:
+            filecontents = file.read().splitlines()
         ast_platemapping, _ = read_platemapping(
-            self._mp_ast_mapping_filepath,
-            list(map(str, self._substances_unmapped["MP Barcode 96"].unique())),
+            filecontents,
+            orig_barcodes,
         )
         # Do some sanity checks:
         necessary_columns = [
             "Dataset",
             "Internal ID",
-            "MP Barcode 96",
-            "MP Position 96",
+            self._mp_barcode_header,
+            self._mp_position_header,
         ]
         # Check if all necessary column are present in the input table:
         if not all(
@@ -968,46 +1067,45 @@ class MIC(Experiment):  # Minimum Inhibitory Concentration
         ) = zip(
             *self._substances_unmapped.apply(
                 lambda row: mic_assaytransfer_mapping(
-                    row["MP Position 96"],
-                    row["MP Barcode 96"],
+                    row[self._mp_position_header],
+                    row[self._mp_barcode_header],
                     ast_platemapping,
                 ),
                 axis=1,
             )
         )
+        orig_barcodes = list(map(str, self._substances_unmapped["AsT Barcode 384"].unique()))
+        with open(self._ast_acd_mapping_filepath) as file:
+            filecontents = file.read().splitlines()
         acd_platemapping, replicates_dict = read_platemapping(
-            self._ast_acd_mapping_filepath,
-            list(map(str, self._substances_unmapped["AsT Barcode 384"].unique())),
+            filecontents,
+            orig_barcodes,
         )
         num_replicates = list(set(replicates_dict.values()))[0]
+
         single_subst_concentrations = []
+        for dataset in self._substances_unmapped["Dataset"].unique():
+            for substance, subst_row in self._substances_unmapped[self._substances_unmapped["Dataset"] == dataset].groupby("Internal ID"):
+                # Collect the concentrations each as rows for a single substance:
+                single_subst_conc_rows = []
+                init_pos = int(subst_row["Col_384"].iloc[0]) - 1
+                col_positions_384 = [list(range(1, 23, 2)), list(range(2, 23, 2))]
+                for col_i, conc in enumerate(
+                    list(self._dilutions[self._dilutions["Dataset"] == dataset]["Concentration"].unique())
+                ):
+                    # Add concentration:
+                    subst_row["Concentration"] = conc
+                    # Add corresponding column:
+                    subst_row["Col_384"] = int(col_positions_384[init_pos][col_i])
+                    single_subst_conc_rows.append(subst_row.copy())
 
-        for substance, subst_row in self._substances_unmapped.groupby("Internal ID"):
-            # Collect the concentrations each as rows for a single substance:
-            single_subst_conc_rows = []
-            init_pos = int(subst_row["Col_384"].iloc[0]) - 1
-            col_positions_384 = [list(range(1, 23, 2)), list(range(2, 23, 2))]
-            for col_i, conc in enumerate(
-                list(self._dilutions["Concentration"].unique())
-            ):
-                # Add concentration:
-                subst_row["Concentration"] = conc
-                # Add corresponding column:
-                subst_row["Col_384"] = int(col_positions_384[init_pos][col_i])
-                single_subst_conc_rows.append(subst_row.copy())
-
-            # Concatenate all concentrations rows for a substance in a dataframe
-            single_subst_concentrations.append(pd.concat(single_subst_conc_rows))
+                # Concatenate all concentrations rows for a substance in a dataframe
+                if single_subst_conc_rows:
+                    single_subst_concentrations.append(pd.concat(single_subst_conc_rows))
         # Concatenate all self._substances_unmapped dataframes to one whole
         input_w_concentrations = pd.concat(single_subst_concentrations)
 
         acd_dfs_list = []
-        # for ast_barcode, ast_plate in input_w_concentrations.groupby("AsT Barcode 384"):
-        #     self._controls["AsT Barcode 384"] = list(
-        #         ast_plate["AsT Barcode 384"].unique()
-        #     )[0]
-
-        #     ast_plate = pd.concat([ast_plate, self._controls.copy()])
         for ast_barcode, ast_plate in input_w_concentrations.groupby("AsT Barcode 384"):
             controls_with_barcode = self._controls.assign(**{"AsT Barcode 384": ast_barcode})
             ast_plate = pd.concat([ast_plate, controls_with_barcode], ignore_index=True)
@@ -1028,7 +1126,7 @@ class MIC(Experiment):  # Minimum Inhibitory Concentration
         acd_single_concentrations_df = pd.concat(acd_dfs_list)
 
         # merge rawdata with input specifications
-        df = pd.merge(self.rawdata, acd_single_concentrations_df, how="outer")
+        df = pd.merge(self.rawdata, acd_single_concentrations_df, how="outer").dropna(subset=["Internal ID"])
         return df
 
     @cached_property
