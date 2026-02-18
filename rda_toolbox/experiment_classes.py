@@ -28,7 +28,8 @@ from .utility import (
     mic_assaytransfer_mapping,
     get_minimum_precipitation_conc,
     check_activity_conditions,
-    split_position
+    split_position,
+    add_molecule_data
 )
 from .parser import (
     parse_readerfiles,
@@ -84,16 +85,26 @@ class Experiment:
 
 # TODO: Add a Report with the following specifications:
 # - Add Report to MIC and PrimaryScreen classes
+# - Create a report per Dataset (cooperation partner)
+# - Create a report for all datasets together (overall report)
+# - # Report Title (MIC or Primary Screen)
+# - ## Introduction
 # - Include all relevant experimental conditions
-# - Include all results
-# - Include all metadata
+#   - Concentrations
+#   - Organisms
+# - ## Quality Control
 # - Include all quality control plots and tables
+#  - Include a summary of the quality control results (e.g. Z-Factor, B-Score distribution, etc.)
+#   - Include all warnings and potential issues in the report
+#       - regarding precipitation
+#       - regarding OVRFLW errors (with info on rawdata filename and position in the layout)
+# - ## Results
+# - Include all results
+# - # Metadata
+# - Include all metadata
 # - Include plots and tables in a structured way
 # - Structure the report in a way that is easy to navigate and understand
 # - Focus on scientific practices, clarity and reproducibility
-# - Include all warnings and potential issues in the report
-#   - regarding precipitation
-#   - regarding OVRFLW errors (with info on rawdata filename and position in the layout)
 # - Save it as a PDF or HTML file (or DOCX if possible) in the result directory
 
 # TODO: Add the option to add a filepath for a chemical structure information file (e.g. SMILES in an excel or csv, .SDF file with molblocks, etc.) and parse it into a DataFrame that can be merged with the inputfile substances and later added to the results tables and plots.
@@ -303,6 +314,9 @@ class PrimaryScreen(Experiment):
         background_locations: pd.DataFrame | list[str] | None = None,
         precip_exclude_outlier: bool = False,
         needs_mapping: bool = True,
+        molecule_df: pd.DataFrame | None = None,
+        molecule_external_id_column: str = "External ID",
+        molecule_column: str = "mol",
     ):
         super().__init__(rawfiles_folderpath, plate_type)
         self._measurement_label = measurement_label
@@ -366,6 +380,9 @@ class PrimaryScreen(Experiment):
             thresholds = [50.0]
         self.thresholds = thresholds
         self.b_score_threshold = b_score_threshold
+        self._molecule_df = molecule_df
+        self._molecule_external_id_column = molecule_external_id_column
+        self._molecule_column = molecule_column
         if background_locations is None:
             background_locations = [
                 f"{row}24" for row in string.ascii_uppercase[:16]
@@ -473,6 +490,14 @@ class PrimaryScreen(Experiment):
                 }"
             )
             logger.info(f"{ast_barcode} -> {ast_plate['AcD Barcode 384'].unique()}")
+
+        if self._molecule_df is not None:
+            result_df = add_molecule_data(
+                result_df,
+                self._molecule_df,
+                external_id=self._molecule_external_id_column,
+                mol_column=self._molecule_column,
+            )
         # result_df = result_df.rename({self._substance_id: "Internal ID"}) # rename whatever substance ID was given to Internal ID
         return result_df
 
@@ -651,11 +676,26 @@ class PrimaryScreen(Experiment):
             },
         ).reset_index().round(2)
         pivot_df.columns = [" ".join(x).strip() for x in pivot_df.columns.ravel()]
+        molecule_columns = [col for col in ["InChI", "InChI-Key"] if col in df.columns]
+        molecule_info_df = (
+            df[["Internal ID"] + molecule_columns]
+            .dropna(subset=["Internal ID"])
+            .drop_duplicates("Internal ID")
+            if molecule_columns
+            else None
+        )
 
         for threshold in self.thresholds:
             # Apply Threshold to % Growth:
             for dataset, dataset_grp in pivot_df.groupby("Dataset"):
                 dataset_name = str(dataset)
+                if molecule_info_df is not None:
+                    dataset_grp = pd.merge(
+                        dataset_grp,
+                        molecule_info_df,
+                        how="left",
+                        on="Internal ID",
+                    )
                 if not self.precipitation.results.empty and not self.substances_precipitation is None:
                     dataset_grp = pd.merge(dataset_grp, self.substances_precipitation, how="outer")
                     dataset_grp = dataset_grp[dataset_grp["Relative Optical Density mean"].notna()]
@@ -711,6 +751,13 @@ class PrimaryScreen(Experiment):
                         self.substances_precipitation,
                         how="left",
                         on=["Internal ID", "Concentration"],
+                    )
+                if molecule_info_df is not None:
+                    results_sorted_by_mean_activity = pd.merge(
+                        results_sorted_by_mean_activity,
+                        molecule_info_df,
+                        how="left",
+                        on="Internal ID",
                     )
 
                 # Correct "mean" header if its only one replicate (remove 'mean')

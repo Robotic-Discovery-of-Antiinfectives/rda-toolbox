@@ -837,6 +837,21 @@ def measurement_vs_bscore_scatter(
     # Add values for thresholds
     chart_df["Growth Threshold"] = measurement_threshold
     chart_df["B-Score Threshold"] = b_score_threshold
+    tooltip_fields: list = []
+    # for name in ["Internal ID", "External ID", "Dataset", "Organism"]:
+    #     if name in chart_df.columns:
+    #         tooltip_fields.append(alt.Tooltip(f"{name}:N"))
+    # if measurement_header in chart_df.columns:
+    #     tooltip_fields.append(alt.Tooltip(f"{measurement_header}:Q", title=measurement_title))
+    # if bscore_header in chart_df.columns:
+    #     tooltip_fields.append(alt.Tooltip(f"{bscore_header}:Q", title=bscore_title))
+    # if "InChI" in chart_df.columns:
+    #     tooltip_fields.append(alt.Tooltip("InChI:N"))
+    # if "InChI-Key" in chart_df.columns:
+    #     tooltip_fields.append(alt.Tooltip("InChI-Key:N"))
+    # if "mol_img" in chart_df.columns:
+    #     tooltip_fields.append(alt.Tooltip(["mol_img:N"], title="mol_img"))
+
     base = alt.Chart(chart_df, width=600)
     chart = base.mark_circle().encode(
         x=alt.X(f"{bscore_header}:Q", title=bscore_title),
@@ -846,6 +861,7 @@ def measurement_vs_bscore_scatter(
             title=measurement_title,
         ),
         color=f"{color_header}:N",
+        # tooltip=tooltip_fields,
     )
     growth_threshold_rule = base.mark_rule(color="blue", strokeDash=[4.4]).encode(
         y="Growth Threshold:Q"
