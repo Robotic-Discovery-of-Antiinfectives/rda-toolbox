@@ -372,64 +372,6 @@ def mic_assaytransfer_mapping(
     return str(row_384), str(col_384), str(barcode_384_ast)
 
 
-# def mic_assaytransfer_mapping(position, orig_barcode, ast_platemapping):
-#     """
-#     This is a rather unfinished function to map 96 well motherplates to 384 well assay transfer (AsT) plates.
-
-#     """
-#     row = position[0]
-#     col = int(position[1:])
-#     orig_barcode = str(orig_barcode)
-#     rowmapping = dict(
-#         zip(
-#             string.ascii_uppercase[0:8],
-#             np.array_split(list(string.ascii_uppercase)[0:16], 8),
-#         )
-#     )
-#     colmapping = dict(zip(list(range(1, 13)), [1, 2] * 13))
-#     mapping = {
-#         1: 0,
-#         2: 0,
-#         3: 1,
-#         4: 1,
-#         5: 0,
-#         6: 0,
-#         7: 1,
-#         8: 1,
-#         9: 0,
-#         10: 0,
-#         11: 1,
-#         12: 1,
-#     }
-
-#     row_384 = rowmapping[row][mapping[col]]
-#     col_384 = colmapping[col]
-
-#     # TODO: sometimes only the middle (5-8) or the last part of a motherplate is taken...
-#     # Currently this would lead to an index error since A5 -> ast_of_3 = 1 but if this is the only AsT plate, the first AsT plate is "missing"...
-#     # Possible solution would be to try - except decreasing the position by 4 iteratively...
-#     # try A5 except IndexError: A5 - 4 -> try A1 success etc.
-#     # or A12 -> ast_of_3 = 2 -> IndexError. A12 - 4 -> A8 -> IndexError. A8 - 4 -> A4 works...
-#     # seems like a bad solution though.
-#     # num_of_ast_plates = len(ast_platemapping[orig_barcode][0])
-#     # if num_of_ast_plates < 3:
-#     #     print("Did someone just take one third of a motherplate (Only one or two AsT plates for one MP)?")
-
-#     if col in [1, 2, 3, 4]:
-#         ast_of_3 = 0
-#     elif col in [5, 6, 7, 8]:
-#         ast_of_3 = 1
-#     else:
-#         ast_of_3 = 2
-#     # print("orig_barcode", orig_barcode, "ast_of_3", ast_of_3)
-#     print(position, orig_barcode, ast_platemapping)
-#     print("ast_platemapping", ast_platemapping)
-#     print("col", col)
-#     # print(ast_platemapping[orig_barcode][0])
-#     barcode_384_ast = ast_platemapping[orig_barcode][0][ast_of_3]
-#     return str(row_384), str(col_384), barcode_384_ast
-
-
 def mol_to_bytes(mol, format="png"):
     img = Draw.MolToImage(mol)
     buffer = io.BytesIO()
@@ -470,6 +412,48 @@ def write_excel_MolImages(df: pd.DataFrame, filename: str, molcol_header: str):
 
     df.drop(columns=["img_buf", molcol_header]).to_excel(writer, startcol=1, index=False)
     workbook.close()
+
+
+def add_molecule_data(
+    data_df: pd.DataFrame,
+    mol_df: pd.DataFrame,
+    external_id: str,
+    mol_column: str = "mol",
+    relevant_columns: list[str] = ["InChI", "InChI-Key", "mol_img"],
+) -> pd.DataFrame:
+    if "External ID" not in data_df.columns:
+        raise ValueError("Missing 'External ID' column in data_df.")
+    if external_id not in mol_df.columns:
+        raise ValueError(f"Missing '{external_id}' column in mol_df.")
+    if mol_column not in mol_df.columns:
+        raise ValueError(f"Missing '{mol_column}' column in mol_df.")
+
+    mol_df = mol_df.copy().rename(columns={external_id: "External ID"})
+
+    def _mol_to_inchi(mol):
+        if mol is None:
+            return None
+        return Chem.MolToInchi(mol)
+
+    def _mol_to_inchi_key(mol):
+        if mol is None:
+            return None
+        return Chem.MolToInchiKey(mol)
+
+    def _mol_to_img(mol):
+        if mol is None:
+            return None
+        return imgbuffer_to_imgstr(mol_to_bytes(mol))
+
+    mol_df["InChI"] = mol_df[mol_column].apply(_mol_to_inchi)
+    mol_df["InChI-Key"] = mol_df[mol_column].apply(_mol_to_inchi_key)
+    mol_df["mol_img"] = mol_df[mol_column].apply(_mol_to_img)
+
+    data_mol_df = pd.merge(
+        data_df, mol_df[["External ID"] + relevant_columns], on="External ID", how="left"
+    )
+    # data_mol_df = data_mol_df.convert_dtypes()
+    return data_mol_df
 
 
 def smiles_to_imgstr(smiles):
