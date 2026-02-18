@@ -864,6 +864,9 @@ class MIC(Experiment):  # Minimum Inhibitory Concentration
         ],
         precip_exclude_outlier: bool = False,
         precip_conc_multiplicator: float = 2.0,
+        molecule_df: pd.DataFrame | None = None,
+        molecule_external_id_column: str = "External ID",
+        molecule_column: str = "mol",
     ):
         super().__init__(rawfiles_folderpath, plate_type)
         self._inputfile_path = inputfile_path
@@ -872,6 +875,9 @@ class MIC(Experiment):  # Minimum Inhibitory Concentration
         self._measurement_label = measurement_label
         self._mp_barcode_header = mp_barcode_header
         self._mp_position_header = mp_position_header
+        self._molecule_df = molecule_df
+        self._molecule_external_id_column = molecule_external_id_column
+        self._molecule_column = molecule_column
         self.precipitation = (
             Precipitation(
                 precipitation_rawfilepath,
@@ -1174,6 +1180,13 @@ class MIC(Experiment):  # Minimum Inhibitory Concentration
 
         # merge rawdata with input specifications
         df = pd.merge(self.rawdata, acd_single_concentrations_df, how="outer").dropna(subset=["Internal ID"])
+        if self._molecule_df is not None:
+            df = add_molecule_data(
+                df,
+                self._molecule_df,
+                external_id=self._molecule_external_id_column,
+                mol_column=self._molecule_column,
+            )
         return df
 
     @cached_property
@@ -1392,7 +1405,10 @@ class MIC(Experiment):  # Minimum Inhibitory Concentration
         # Drop entries where no MIC could be determined
         mic_df = pd.DataFrame.from_records(mic_records)
         # Merge inconsistent (but maybe necessary) columns again
-        mic_df = pd.merge(mic_df, df[["Internal ID", "External ID"]], on=["Internal ID"])
+        merge_columns = ["Internal ID", "External ID"] + [
+            col for col in ["InChI", "InChI-Key"] if col in df.columns
+        ]
+        mic_df = pd.merge(mic_df, df[merge_columns], on=["Internal ID"])
         mic_df = pd.merge(mic_df, self._organisms[["Organism", "Organism formatted"]], on=["Organism formatted"])
         unit_values = self._dilutions.get("Unit")
         mic_df["Unit"] = unit_values.dropna().iloc[0] if unit_values is not None and not unit_values.dropna().empty else None
@@ -1487,7 +1503,15 @@ class MIC(Experiment):  # Minimum Inhibitory Concentration
                 # Fill with nan if not available
                 organisms_thresholded_mics = organisms_thresholded_mics.round(2)
                 organisms_thresholded_mics = organisms_thresholded_mics.astype(str)
-                organisms_thresholded_mics = pd.merge(organisms_thresholded_mics, self.mic_df[["Internal ID", "External ID"]], on=["Internal ID"], how="left")
+                id_info_columns = ["Internal ID", "External ID"] + [
+                    col for col in ["InChI", "InChI-Key"] if col in self.mic_df.columns
+                ]
+                organisms_thresholded_mics = pd.merge(
+                    organisms_thresholded_mics,
+                    self.mic_df[id_info_columns],
+                    on=["Internal ID"],
+                    how="left",
+                )
                 # organisms_thresholded_mics.fillna("NA", inplace=True)
 
                 if not self.precipitation.results.empty and not self.substances_minimum_precipitation_conc is None:
@@ -1502,7 +1526,9 @@ class MIC(Experiment):  # Minimum Inhibitory Concentration
                 unit_values = self._dilutions.get("Unit")
                 organisms_thresholded_mics["Unit"] = unit_values.dropna().iloc[0] if unit_values is not None and not unit_values.dropna().empty else None
                 # Reorder columns
-                desired_order = ["Internal ID", "External ID"]
+                desired_order = ["Internal ID", "External ID"] + [
+                    col for col in ["InChI", "InChI-Key"] if col in organisms_thresholded_mics.columns
+                ]
                 remaining_cols = [col for col in organisms_thresholded_mics.columns if col not in desired_order]
                 organisms_thresholded_mics = organisms_thresholded_mics[desired_order + remaining_cols]
                 organisms_thresholded_mics = organisms_thresholded_mics.replace("nan", "NA").fillna("NA")
