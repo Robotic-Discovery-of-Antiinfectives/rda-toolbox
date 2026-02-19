@@ -3,7 +3,7 @@ Repository = "https://github.com/Robotic-Discovery-of-Antiinfectives/rda-toolbox
 Documentation = "https://robotic-discovery-of-antiinfectives.github.io/rda-toolbox/"
 [project]
 name = "rda-toolbox"
-version = "0.1.14"
+version = "0.1.15"
 description = "Add your description here"
 authors = [
     {name = "Timo Leistner", email = "leistner.timo@googlemail.com"},
