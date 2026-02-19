@@ -1,0 +1,78 @@
+Metadata-Version: 2.4
+Name: rda-toolbox
+Version: 0.1.14
+Summary: Add your description here
+Author-email: Timo Leistner <leistner.timo@googlemail.com>
+Project-URL: Repository, https://github.com/Robotic-Discovery-of-Antiinfectives/rda-toolbox
+Project-URL: Documentation, https://robotic-discovery-of-antiinfectives.github.io/rda-toolbox/
+Requires-Python: >=3.12
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: altair>=6.0.0
+Requires-Dist: black>=26.1.0
+Requires-Dist: mkdocstrings-python>=2.0.2
+Requires-Dist: numpy>=2.4.2
+Requires-Dist: openpyxl>=3.1.5
+Requires-Dist: pandas>=3.0.1
+Requires-Dist: pytest>=9.0.2
+Requires-Dist: rdkit>=2025.9.5
+Requires-Dist: vl-convert-python>=1.9.0.post1
+Dynamic: license-file
+
+# Robotic-assisted Discovery of Antiinfectives
+
+This package aims to provide a toolbox for data analysis in the field of drug discovery.
+
+- **[Docs](https://robotic-discovery-of-antiinfectives.github.io/rda-toolbox/)**
+- **[PyPi](https://pypi.org/project/rda-toolbox/)**
+
+
+---
+
+The aim is to provide functions to help evaluate the following assays:
+- Primary Screen
+- MIC (Minimum Inhibitory Concentration) Assay
+- Cellviability
+
+### Usage Example
+`pip install rda-toolbox`
+
+or
+
+`pip install "git+https://github.com/Robotic-Discovery-of-Antiinfectives/rda-toolbox.git"`
+
+
+```Python
+#!/usr/bin/env python3
+
+import rda_toolbox as rda
+import glob
+
+rda.readerfiles_rawdf(glob.glob("path/to/raw/readerfiles/*"))
+```
+
+
+### File Parsing
+- Read output files and return readouts in a [tidy](https://r4ds.had.co.nz/tidy-data.html), [long](https://towardsdatascience.com/long-and-wide-formats-in-data-explained-e48d7c9a06cb) DataFrame
+
+#### **Supported readers:**
+- Cytation C10
+
+### Plotting
+This package uses [Vega-Altair](https://altair-viz.github.io/index.html) for creating interactive (or static) visualizations.
+
+- Plate Heatmaps
+- Upset plots
+  - `UpSetAltair` plotting function is taken from https://github.com/hms-dbmi/upset-altair-notebook and modified
+  - This part of this package is licensed under MIT license.
+<!-- https://testdriven.io/blog/python-project-workflow/ -->
+
+
+### New Release
+1) Update `pyproject.toml` release version
+2) Update `docs/source/conf.py` release version
+3) On GitHub go to *releases* and `Draft a new release`
+
+### This package is managed via [UV](https://docs.astral.sh/uv/guides/package/#preparing-your-project-for-packaging)
+- `uv build`
+- `uv publish`
