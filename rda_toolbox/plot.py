@@ -37,18 +37,18 @@ def get_heatmap(
         alt.Y("Row_384:O").title(None),
         tooltip=list(subdf.columns),
     )
-    blank_mean = subdf[subdf[substance_id] == blanks][measurement].mean()
-    negative_mean = subdf[subdf[substance_id] == negative_controls][measurement].mean()
+    blank_mean = subdf[subdf[substance_id] == blanks]["Measurement"].mean()
+    negative_mean = subdf[subdf[substance_id] == negative_controls]["Measurement"].mean()
     heatmap = base.mark_rect().encode(
-        alt.Color(f"{measurement}:Q")
-        .title("Optical Density")
+        alt.Color("Measurement:Q")
+        .title(measurement)
         .scale(domain=[blank_mean, negative_mean]),
     )
     text = base.mark_text(baseline="middle", align="center", fontSize=7).encode(
-        alt.Text(f"{measurement}:Q", format=".1f"),
+        alt.Text(f"Measurement:Q", format=".1f"),
         color=alt.condition(
-            alt.datum[measurement]
-            < max(subdf[subdf[substance_id] == negative_controls][measurement]) / 2,
+            alt.datum["Measurement"]
+            < max(subdf[subdf[substance_id] == negative_controls]["Measurement"]) / 2,
             alt.value("black"),
             alt.value("white"),
         ),
@@ -110,7 +110,7 @@ def plateheatmaps(
 
 
 def blank_heatmap(blank_df: pd.DataFrame) -> alt.LayerChart:
-    blank_df = blank_df.copy()[["Row_384", "Col_384", "Raw Optical Density"]]
+    blank_df = blank_df.copy()[["Row_384", "Col_384", "Optical Density"]]
     title = "Blank (Only Medium) plate"
     base = alt.Chart(
         blank_df, title=alt.TitleParams("", subtitle=title) if title else ""
@@ -120,12 +120,12 @@ def blank_heatmap(blank_df: pd.DataFrame) -> alt.LayerChart:
         tooltip=list(blank_df.columns),
     )
     heatmap = base.mark_rect().encode(
-        alt.Color("Raw Optical Density:Q")
+        alt.Color("Optical Density:Q")
         .title("Optical Density")
         .scale(domain=[0, 100])
     )
     text = base.mark_text(baseline="middle", align="center", fontSize=10).encode(
-        alt.Text("Raw Optical Density:Q", format=".1f"),
+        alt.Text("Optical Density:Q", format=".1f"),
     )
     return alt.layer(heatmap, text)
 
@@ -838,25 +838,12 @@ def measurement_vs_bscore_scatter(
     chart_df["Growth Threshold"] = measurement_threshold
     chart_df["B-Score Threshold"] = b_score_threshold
     tooltip_fields: list = []
-    # for name in ["Internal ID", "External ID", "Dataset", "Organism"]:
-    #     if name in chart_df.columns:
-    #         tooltip_fields.append(alt.Tooltip(f"{name}:N"))
-    # if measurement_header in chart_df.columns:
-    #     tooltip_fields.append(alt.Tooltip(f"{measurement_header}:Q", title=measurement_title))
-    # if bscore_header in chart_df.columns:
-    #     tooltip_fields.append(alt.Tooltip(f"{bscore_header}:Q", title=bscore_title))
-    # if "InChI" in chart_df.columns:
-    #     tooltip_fields.append(alt.Tooltip("InChI:N"))
-    # if "InChI-Key" in chart_df.columns:
-    #     tooltip_fields.append(alt.Tooltip("InChI-Key:N"))
-    # if "mol_img" in chart_df.columns:
-    #     tooltip_fields.append(alt.Tooltip(["mol_img:N"], title="mol_img"))
 
     base = alt.Chart(chart_df, width=600)
     chart = base.mark_circle().encode(
         x=alt.X(f"{bscore_header}:Q", title=bscore_title),
         y=alt.Y(
-            f"{measurement_header}:Q",
+            f"Measurement:Q",
             scale=alt.Scale(reverse=True),
             title=measurement_title,
         ),
@@ -871,10 +858,10 @@ def measurement_vs_bscore_scatter(
     )
 
     rect = base.mark_rect(color="blue").encode(
-        y=f"min({measurement_header}):Q",
+        y="min(Measurement):Q",
         y2="Growth Threshold:Q",
         x="B-Score Threshold:Q",
-        x2=f"min({bscore_header}):Q",
+        x2="min(Measurement):Q",
         opacity=alt.value(0.2),
     )
 

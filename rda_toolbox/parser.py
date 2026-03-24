@@ -49,7 +49,7 @@ def _safe_float(
 
 
 def readerfile_parser(
-    filename: str, file_object: IO[str], resulttable_header: str = "Results"
+    filename: str, file_object: IO[str], resulttable_headers: list[str] = ["Results"]
 ) -> dict:
     """
     Parser for files created by the BioTek Cytation C10 Confocal Imaging Reader.
@@ -90,93 +90,99 @@ def readerfile_parser(
 
     metadata_regex = r";?([a-zA-Z0-9 \/]*)[;:]+([a-zA-Z0-9 \/\\:_.-]*),?"
     line_num = 0
-    while line_num < len(lines):
-        if lines[line_num] == resulttable_header:
-            line_num += 1
-            header = list(
-                map(int, lines[line_num].strip("\n").split(";")[1:])
-            )  # get the header as a concrete list
-            index = [""] * num_rows
-            for _row_num in range(num_rows):  # for the next num_rows, read result data
+    for resulttable_header in resulttable_headers:
+        while line_num < len(lines):
+            if lines[line_num] == resulttable_header:
                 line_num += 1
-                res_line = lines[line_num].split(";")
-                # Split at ; and slice off rowlabel and excitation/emission value:
-                row_name = res_line[0]
-                index[_row_num] = row_name
-                parsed_row = []
-                overflow_row = []
-                for _col_idx, token in enumerate(res_line[1:-1]):
-                    col_value = header[_col_idx] if _col_idx < len(header) else None
-                    parsed_value = _safe_float(
-                        token,
-                        filename,
-                        overflow_events=overflow_events,
-                        table="Raw Optical Density",
-                        row=row_name,
-                        col=col_value,
-                    )
-                    parsed_row.append(parsed_value)
-                    overflow_row.append(token.strip().upper() == "OVRFLW")
-                results[_row_num] = parsed_row
-                overflow_results[_row_num] = overflow_row
-            # Initialize DataFrame from results and add it to filedict
-            filedict["Raw Optical Density"] = pd.DataFrame(
-                data=results, index=index, columns=header
-            )
-            filedict["Overflow Raw Optical Density"] = pd.DataFrame(
-                data=overflow_results, index=index, columns=header
-            )
-            line_num += 1
-        elif lines[line_num] == "Layout":  # For the next num_rows, read layout data
-            line_num += 1
-            header = list(
-                map(int, lines[line_num].strip("\n").split(";")[1:])
-            )  # Because we use header twice here, we collect it via list()
-            index = [""] * num_rows
-            for _row_num in range(num_rows):
+                header = list(
+                    map(int, lines[line_num].strip("\n").split(";")[1:])
+                )  # get the header as a concrete list
+                index = [""] * num_rows
+                for _row_num in range(num_rows):  # for the next num_rows, read result data
+                    line_num += 1
+                    res_line = lines[line_num].split(";")
+                    # Split at ; and slice off rowlabel and excitation/emission value:
+                    row_name = res_line[0]
+                    index[_row_num] = row_name
+                    parsed_row = []
+                    overflow_row = []
+                    for _col_idx, token in enumerate(res_line[1:-1]):
+                        col_value = header[_col_idx] if _col_idx < len(header) else None
+                        parsed_value = _safe_float(
+                            token,
+                            filename,
+                            overflow_events=overflow_events,
+                            table=resulttable_header, # TODO: Change "Raw Optical Density" to resulttable_header
+                            row=row_name,
+                            col=col_value,
+                        )
+                        parsed_row.append(parsed_value)
+                        overflow_row.append(token.strip().upper() == "OVRFLW")
+                    results[_row_num] = parsed_row
+                    overflow_results[_row_num] = overflow_row
+                # Initialize DataFrame from results and add it to filedict
+                filedict[resulttable_header] = pd.DataFrame(
+                    data=results, index=index, columns=header
+                )
+                filedict[f"Overflow {resulttable_header}"] = pd.DataFrame(
+                    data=overflow_results, index=index, columns=header
+                )
                 line_num += 1
-                layout_line = lines[line_num].split(";")
-                index[_row_num] = layout_line[0]
-                layout[_row_num] = layout_line[1:-1]
-                # Each second line yields a concentration layout line
+            elif lines[line_num] == "Layout":  # For the next num_rows, read layout data
                 line_num += 1
-                conc_line = lines[line_num].split(";")
-                concentrations[_row_num] = [
-                    _safe_float(
-                        x,
-                        filename,
-                        overflow_events=overflow_events,
-                        table="Concentration",
-                        row=index[_row_num],
-                        col=header[_col_idx] if _col_idx < len(header) else None,
-                    )
-                    for _col_idx, x in enumerate(conc_line[1:-1])
-                ]
-            # Add layouts to filedict
-            filedict["Layout"] = pd.DataFrame(data=layout, index=index, columns=header)
-            filedict["Concentration"] = pd.DataFrame(
-                data=concentrations, index=index, columns=header
-            )
-            line_num += 1
-        else:
-            metadata_pairs = re.findall(metadata_regex, lines[line_num])
-            line_num += 1
-            if not metadata_pairs:
-                continue
+                header = list(
+                    map(int, lines[line_num].strip("\n").split(";")[1:])
+                )  # Because we use header twice here, we collect it via list()
+                index = [""] * num_rows
+                for _row_num in range(num_rows):
+                    line_num += 1
+                    layout_line = lines[line_num].split(";")
+                    index[_row_num] = layout_line[0]
+                    layout[_row_num] = layout_line[1:-1]
+                    # Each second line yields a concentration layout line
+                    line_num += 1
+                    conc_line = lines[line_num].split(";")
+                    concentrations[_row_num] = [
+                        _safe_float(
+                            x,
+                            filename,
+                            overflow_events=overflow_events,
+                            table="Concentration",
+                            row=index[_row_num],
+                            col=header[_col_idx] if _col_idx < len(header) else None,
+                        )
+                        for _col_idx, x in enumerate(conc_line[1:-1])
+                    ]
+                # Add layouts to filedict
+                filedict["Layout"] = pd.DataFrame(data=layout, index=index, columns=header)
+                filedict["Concentration"] = pd.DataFrame(
+                    data=concentrations, index=index, columns=header
+                )
+                line_num += 1
             else:
-                for key, value in metadata_pairs:
-                    if not all(
-                        [key, value]
-                    ):  # if any of the keys or values are empty, skip
-                        continue
-                    else:
-                        metadata[key.strip(" :")] = value.strip(" ")
+                if lines[line_num] in resulttable_headers:
+                    line_num += num_rows + 1
+                metadata_pairs = re.findall(metadata_regex, lines[line_num])
+                line_num += 1
+                if not metadata_pairs:
+                    continue
+                else:
+                    for key, value in metadata_pairs:
+                        if not all(
+                            [key, value]
+                        ):  # if any of the keys or values are empty, skip
+                            continue
+                        else:
+                            metadata[key.strip(" :")] = value.strip(" ")
+        line_num = 0
     filedict["metadata"] = metadata
     filedict["overflow_events"] = overflow_events
     return filedict
 
 
-def filepaths_to_filedicts(filepaths: list[str]) -> list[dict]:
+def filepaths_to_filedicts(
+    filepaths: list[str], resulttable_headers: list[str] = ["Results"]
+) -> list[dict]:
     """
     Wrapper function to obtain a list of dictionaries which contain the raw files information like
 
@@ -194,7 +200,11 @@ def filepaths_to_filedicts(filepaths: list[str]) -> list[dict]:
     for path in filepaths:
         try:
             with open(path, encoding="utf-8", errors="ignore") as fh:
-                filedicts.append(readerfile_parser(basename(path), fh))
+                filedicts.append(
+                    readerfile_parser(
+                        basename(path), fh, resulttable_headers=resulttable_headers
+                    )
+                )
         except OSError as exc:
             raise OSError(f"Failed to read {path!r}: {exc}") from exc
     return filedicts
@@ -212,12 +222,12 @@ def collect_metadata(filedicts: list[dict]) -> pd.DataFrame:
     return allmetadata_df
 
 
-def collect_results(filedicts: list[dict]) -> pd.DataFrame:
+def collect_results(filedicts: list[dict], resultmatrix_header_mapping: dict[str, str]) -> pd.DataFrame:
     """
     Collect and merge results from the readerfiles.
     """
     allresults_df = pd.DataFrame(
-        {"Row": [], "Column": [], "Raw Optical Density": [], "Overflow": []}
+        {"Row": [], "Column": [], "Measurement": [], "Measurement Type": [], "Overflow": []}
     )  # , "Layout": [], "Concentration": []})
     platetype_s = list(set(fd["plate_type"] for fd in filedicts))
     if len(platetype_s) == 1:
@@ -226,28 +236,25 @@ def collect_results(filedicts: list[dict]) -> pd.DataFrame:
         raise Exception(f"Different plate types used {platetype_s}")
 
     for filedict in filedicts:
+        for resultmatrix_header, resultmatrix_label in resultmatrix_header_mapping.items():
+            long_rawdata_df = pd.melt(
+                filedict[resultmatrix_header].reset_index(names="Row"),
+                id_vars=["Row"],
+                var_name="Column",
+                value_name="Measurement",
+            )
+            long_overflow_df = pd.melt(
+                filedict[f"Overflow {resultmatrix_header}"].reset_index(names="Row"),
+                id_vars=["Row"],
+                var_name="Column",
+                value_name="Overflow",
+            )
+            long_rawdata_df["Overflow"] = long_overflow_df["Overflow"].astype(bool).values
 
-        long_rawdata_df = pd.melt(
-            filedict["Raw Optical Density"].reset_index(names="Row"),
-            id_vars=["Row"],
-            var_name="Column",
-            value_name="Raw Optical Density",
-        )
-        long_overflow_df = pd.melt(
-            filedict["Overflow Raw Optical Density"].reset_index(names="Row"),
-            id_vars=["Row"],
-            var_name="Column",
-            value_name="Overflow",
-        )
-        long_rawdata_df["Overflow"] = long_overflow_df["Overflow"].astype(bool).values
-
-        long_rawdata_df["Barcode"] = filedict["Barcode"]
-        # df_merged = reduce(
-        #     lambda  left,right: pd.merge(left,right,on=['Row', 'Column'], how='outer'),
-        #     [long_rawdata_df, long_layout_df, long_concentrations_df]
-        # )
-        allresults_df = pd.concat([allresults_df, long_rawdata_df], axis=0)
-        platetype = filedict["plate_type"]
+            long_rawdata_df["Barcode"] = filedict["Barcode"]
+            long_rawdata_df["Measurement Type"] = resultmatrix_header_mapping[resultmatrix_header]
+            allresults_df = pd.concat([allresults_df, long_rawdata_df], axis=0)
+            platetype = filedict["plate_type"]
 
     allresults_df.rename(
         columns={"Row": f"Row_{platetype}", "Column": f"Col_{platetype}"}, inplace=True
@@ -255,13 +262,16 @@ def collect_results(filedicts: list[dict]) -> pd.DataFrame:
     return allresults_df.reset_index(drop=True)
 
 
-def parse_readerfiles(path: str | None) -> tuple[pd.DataFrame, pd.DataFrame]:
+def parse_readerfiles(
+    path: str | None, resultmatrix_header_mapping: dict[str, str] = {"Results": "Raw Optical Density"}
+) -> tuple[pd.DataFrame, pd.DataFrame]:
     """
     Reads CytationC10 readerfiles (plain text files) and merges the results into
     two DataFrames (rawdata and metadata) which is returned.
     Wrapper for readerfiles_rawdf to keep backwards compatibility.
     Improves readerfiles_rawdf, provide a single path for convenience.
     """
+    resulttable_headers = list(resultmatrix_header_mapping.keys())
     if not path:
         return pd.DataFrame(), pd.DataFrame()
     paths = [
@@ -269,12 +279,14 @@ def parse_readerfiles(path: str | None) -> tuple[pd.DataFrame, pd.DataFrame]:
             for f in os.listdir(path)
             if os.path.isfile(os.path.join(path, f))
     ]
-    df_raw = readerfiles_rawdf(paths)
+    df_raw = readerfiles_rawdf(paths, resultmatrix_header_mapping=resultmatrix_header_mapping)
     df_raw["Col_384"] = df_raw["Col_384"].astype(int)
-    df_meta = readerfiles_metadf(paths)
+    df_meta = readerfiles_metadf(paths, resulttable_headers=resulttable_headers)
     return df_raw, df_meta
 
-def readerfiles_rawdf(paths: list[str]) -> pd.DataFrame:
+def readerfiles_rawdf(
+    paths: list[str], resultmatrix_header_mapping: dict = {"Results": "Raw Optical Density"}
+) -> pd.DataFrame:
     """
     Parses data from files declared by filepaths and merges the results into a DataFrame
     :param paths: A list of filepaths corresponding to the raw reader files generated by Cytation10
@@ -290,8 +302,10 @@ def readerfiles_rawdf(paths: list[str]) -> pd.DataFrame:
         rawdata_df = readerfiles_rawdf(glob.glob('path/to/raw/files/*'))
         ```
     """
-    filedicts = filepaths_to_filedicts(paths)
-    rawdata = collect_results(filedicts)
+    filedicts = filepaths_to_filedicts(paths, resulttable_headers=list(resultmatrix_header_mapping.keys()))
+    rawdata_tables = []
+    # for resultmatrix_header, measurement_label in resultmatrix_header_mapping.items():
+    rawdata = collect_results(filedicts, resultmatrix_header_mapping)
     overflow_count = int(rawdata["Overflow"].sum()) if "Overflow" in rawdata.columns else 0
     if overflow_count > 0:
         affected_files = {
@@ -309,13 +323,16 @@ def readerfiles_rawdf(paths: list[str]) -> pd.DataFrame:
         )
     rawdata["Col_384"] = rawdata["Col_384"].astype(str)
     rawdata.rename(columns={"Barcode": "AcD Barcode 384"}, inplace=True)
-    return rawdata
+    rawdata_tables.append(rawdata)
+    return pd.concat(rawdata_tables)
 
-def readerfiles_metadf(paths: list[str]) -> pd.DataFrame:
+def readerfiles_metadf(
+    paths: list[str], resulttable_headers: list[str] = ["Results"]
+) -> pd.DataFrame:
     """
     Parses metadata from files declared by filepaths and merges the results into a DataFrame.
     """
-    filedicts = filepaths_to_filedicts(paths)
+    filedicts = filepaths_to_filedicts(paths, resulttable_headers=resulttable_headers)
     return collect_metadata(filedicts)
 
 def process_inputfile(file_object):

@@ -648,9 +648,8 @@ def add_precipitation(rawdata, precipitation, mapping_dict):
                     acd_precip = precip_grp.copy()
                     acd_precip["AcD Barcode 384"] = child_barcode
                     precip_all_acd_barcodes.append(acd_precip)
-                # print(acd_barcode, child_barcodes)
     mapped_precipitation = pd.concat(precip_all_acd_barcodes).drop(
-        columns=["Raw Optical Density", "Layout", "Limit of Quantification"]
+        columns=["Measurement", "Layout"]# , "Limit of Quantification"]
     )
     return pd.merge(rawdata, mapped_precipitation, how="outer")
 
@@ -697,6 +696,7 @@ def _save_figures(
         filedir = os.path.join(resultpath, result.dataset)
         pathlib.Path(filedir).mkdir(parents=True, exist_ok=True)
         for file_format in fileformats:
+            print(f"Saving figure {result.file_basename}.{file_format} in {filedir}")
             result.figure.save(
                 os.path.join(filedir, f"{result.file_basename}.{file_format}"),
             )

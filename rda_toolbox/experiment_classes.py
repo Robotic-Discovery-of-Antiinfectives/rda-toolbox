@@ -70,17 +70,23 @@ class Experiment:
         Save all plots and tables to resultdir
     """
 
-    def __init__(self, rawfiles_folderpath: Optional[str], plate_type: int):
+    def __init__(
+        self,
+        rawfiles_folderpath: Optional[str],
+        plate_type: int,
+        resultmatrix_header_mapping: Dict[str, str] = {"Results": "Raw Optical Density"},
+    ):
         self._plate_type = plate_type
         self._rows, self._columns = get_rows_cols(plate_type)
         self._rawfiles_folderpath = rawfiles_folderpath
         # If no path is provided, initialize empty placeholders instead of calling parse_readerfiles
         if not rawfiles_folderpath:
             self.rawdata = pd.DataFrame()
-            self.metadata = {}
+            self.metadata = pd.DataFrame()
         else:
             self.rawdata, self.metadata = parse_readerfiles(
-                rawfiles_folderpath
+                rawfiles_folderpath,
+                resultmatrix_header_mapping=resultmatrix_header_mapping,
             )  # Get rawdata, this will later be overwritten by adding precipitation, if available
 
 # TODO: Add a Report with the following specifications:
@@ -139,7 +145,7 @@ class Precipitation(Experiment):
         rawfiles_folderpath: str | None,
         background_locations: pd.DataFrame | list[str] | dict,
         plate_type: int = 384,  # Define default plate_type for experiment
-        measurement_label: str = "Raw Optical Density",
+        measurement_label: str = "Optical Density",
         exclude_outlier: bool = False,
     ):
         super().__init__(rawfiles_folderpath, plate_type)
@@ -173,7 +179,7 @@ class Precipitation(Experiment):
                 {
                     "Row_384": [],
                     "Col_384": [],
-                    "Raw Optical Density": [],
+                    "Optical Density": [],
                     "AcD Barcode 384": [],
                     "Layout": [],
                     "Limit of Quantification": [],
@@ -187,13 +193,15 @@ class Precipitation(Experiment):
             ).fillna({"Layout": "Substance"})
 
         self._background_median = self.rawdata_w_layout[
-            self.rawdata_w_layout["Layout"] == "Background"
-        ][self._measurement_label].median()
+            (self.rawdata_w_layout["Layout"] == "Background") &
+            (self.rawdata_w_layout["Measurement Type"] == self._measurement_label)
+        ]["Measurement"].median()
         # Determine the outlier using 2*median of background samples
         self._outlier = self.rawdata_w_layout[
-            (self.rawdata_w_layout["Layout"] == "Background")
+            (self.rawdata_w_layout["Layout"] == "Background") &
+            (self.rawdata_w_layout["Measurement Type"] == self._measurement_label)
             & (
-                self.rawdata_w_layout[self._measurement_label]
+                self.rawdata_w_layout["Measurement"]
                 > self._background_median * 2
             )
         ]
@@ -219,7 +227,7 @@ class Precipitation(Experiment):
     def limit_of_quantification(self):  # "Bestimmungsmaß"
         background = self.rawdata_w_layout[
             self.rawdata_w_layout["Layout"] == "Background"
-        ][self._measurement_label]
+        ]["Measurement"]
         loq = round(background.mean() + 10 * background.std(), 3)
         self.rawdata_w_layout["Limit of Quantification"] = loq
         return loq
@@ -227,10 +235,10 @@ class Precipitation(Experiment):
     @cached_property
     def results(self):
         self.rawdata_w_layout["Precipitated"] = self.rawdata_w_layout[
-            self._measurement_label
-        ].apply(lambda x: x > self.limit_of_quantification)
+            self.rawdata_w_layout["Measurement Type"] == self._measurement_label
+        ]["Measurement"].apply(lambda x: x > self.limit_of_quantification)
         self.rawdata_w_layout[f"Precipitated at {self._measurement_label}"] = (
-            self.rawdata_w_layout[self._measurement_label].apply(
+            self.rawdata_w_layout[self.rawdata_w_layout["Measurement Type"] == self._measurement_label]["Measurement"].apply(
                 lambda x: x if x > self.limit_of_quantification else None
             )
         )
@@ -248,7 +256,7 @@ class Precipitation(Experiment):
 
         heatmap = base.mark_rect().encode(
             alt.Color(
-                self._measurement_label,
+                "Measurement:Q",
                 scale=alt.Scale(
                     scheme="redyellowblue",
                     domain=[0, self.limit_of_quantification, 1],
@@ -257,10 +265,10 @@ class Precipitation(Experiment):
             ).title(self._measurement_label)
         )
         text = base.mark_text(baseline="middle", align="center", fontSize=7).encode(
-            alt.Text(f"{self._measurement_label}:Q", format=".1f"),
+            alt.Text(f"Measurement:Q", format=".1f"),
             color=alt.condition(
                 alt.datum[self._measurement_label]
-                < max(self.results[self._measurement_label]) / 2,
+                < max(self.results["Measurement"]) / 2,
                 alt.value("black"),
                 alt.value("white"),
             ),
@@ -298,7 +306,7 @@ class PrimaryScreen(Experiment):
         inputfile_path: str,
         mappingfile_path: str,
         plate_type: int = 384,  # Define default plate_type for experiment
-        measurement_label: str = "Raw Optical Density",
+        # measurement_label: str = "Raw Optical Density",
         map_rowname: str = "Row_96",
         map_colname: str = "Col_96",
         q_name: str = "Quadrant",
@@ -317,9 +325,14 @@ class PrimaryScreen(Experiment):
         molecule_df: pd.DataFrame | None = None,
         molecule_external_id_column: str = "External ID",
         molecule_column: str = "mol",
+        cyt10_matrixheader_mapping: Dict[str, str] = {"Result": "Raw Optical Density"},
     ):
-        super().__init__(rawfiles_folderpath, plate_type)
-        self._measurement_label = measurement_label
+        super().__init__(
+            rawfiles_folderpath,
+            plate_type,
+            resultmatrix_header_mapping=cyt10_matrixheader_mapping,
+        )
+        self._measurement_labels = cyt10_matrixheader_mapping.values()
         self._mappingfile_path = mappingfile_path
         self._inputfile_path = inputfile_path
         self._substances_unmapped, self._organisms, self._dilutions, self._controls = (
@@ -389,19 +402,19 @@ class PrimaryScreen(Experiment):
             ]
 
         self.precipitation = (
-            Precipitation(
+            None
+            if precipitation_rawfilepath is None
+            else Precipitation(
                 precipitation_rawfilepath,
                 background_locations=background_locations,
                 exclude_outlier=precip_exclude_outlier,
+                measurement_label="Optical Density",  # As of yet, we expect to use ONLY OD for precipitation detection
             )
-            # if precipitation_rawfilepath
-            # else None
         )
         self.rawdata = (  # Overwrite rawdata if precipitation data is available
-            # self.rawdata
-            # if self.precipitation is None
-            # else
-            add_precipitation(
+            self.rawdata
+            if self.precipitation is None
+            else add_precipitation(
                 self.rawdata, self.precipitation.results, self._mapping_dict
             )
         )
@@ -412,7 +425,7 @@ class PrimaryScreen(Experiment):
         ]
         self.substances_precipitation = (
             None
-            if self.precipitation.results.empty
+            if self.precipitation is None or self.precipitation.results.empty
             else (
                 self._processed_only_substances[
                     self._processed_only_substances["Dataset"] != "Negative Control"
@@ -429,7 +442,7 @@ class PrimaryScreen(Experiment):
                         # "Col_384",
                         "Concentration",
                         "Precipitated",
-                        f"Precipitated at {measurement_label}",
+                        f"Precipitated at Optical Density",
                     ],
                 ]
                 .reset_index(drop=True)
@@ -469,7 +482,7 @@ class PrimaryScreen(Experiment):
 
         mapped_organisms = pd.merge(self._mapping_df, self._organisms, on="Rack")
         rawdata_mapped_organism = pd.merge(mapped_organisms, self.rawdata)
-
+        # print(rawdata_mapped_organism["Measurement Type"].unique())
         result_df = pd.concat(
             [
                 pd.merge(org_df, ast_plate_df, how="inner")
@@ -478,6 +491,7 @@ class PrimaryScreen(Experiment):
                 )
             ]
         )
+        # print(result_df["Measurement Type"].unique())
         if result_df.empty:
             raise ValueError(
                 "After mapping the input substances to the rawdata, the resulting DataFrame is empty.\nThis means that no data points could be attributed to any substance.\nPlease check if the mappingfiles and inputfile are correct and consistent with each other."
@@ -490,7 +504,6 @@ class PrimaryScreen(Experiment):
                 }"
             )
             logger.info(f"{ast_barcode} -> {ast_plate['AcD Barcode 384'].unique()}")
-
         if self._molecule_df is not None:
             result_df = add_molecule_data(
                 result_df,
@@ -506,34 +519,33 @@ class PrimaryScreen(Experiment):
         processed = preprocess(
             self.mapped_input_df,
             substance_id="Internal ID",
-            measurement=self._measurement_label.strip(
-                "Raw "
-            ),  # I know this is weird, its because of how background_normalize_zfactor works,
             negative_controls=self._negative_controls,
             blanks=self._blanks,
             norm_by_barcode=self._norm_by_barcode,
         )
 
         # Add B-Scores to plates without negative controls and blanks
-        proc_wo_controls = processed[
-            ~processed["Internal ID"].isin([self._negative_controls, self._blanks])
-        ]
         # We add b_scores here since we only want them in a primary screen and preprocess() is used generally
-        b_scores = (
-            proc_wo_controls.groupby(self._norm_by_barcode)[
-                [self._norm_by_barcode, "Row_384", "Col_384", self._measurement_label]
+        for label in self._measurement_labels:
+            proc_wo_controls = processed[
+                (~processed["Internal ID"].isin([self._negative_controls, self._blanks])) &
+                (processed["Measurement Type"] == label)
             ]
-            .apply(lambda plate_grp: add_b_score(plate_grp))
-            .reset_index(drop=True)
-        )
-        processed = pd.merge(processed, b_scores, how="outer")
+            b_scores = (
+                proc_wo_controls.groupby(self._norm_by_barcode)[
+                    [self._norm_by_barcode, "Row_384", "Col_384", "Measurement"]
+                ]
+                .apply(lambda plate_grp: add_b_score(plate_grp, measurement_header="Measurement"))
+                .reset_index(drop=True)
+            )
+            processed = pd.merge(processed, b_scores, how="outer")
         return processed
 
-    @cached_property
-    def plateheatmap(self):
+    def plateheatmap(self, df, measurement="Raw Optical Density"):
         return plateheatmaps(
-            self.processed.fillna(""),
+            df.fillna(""),
             substance_id="Internal ID",
+            measurement=measurement,
             negative_control=self._negative_controls,
             blank=self._blanks,
             barcode=self._norm_by_barcode,
@@ -543,15 +555,22 @@ class PrimaryScreen(Experiment):
     def _resultfigures(self):
         result_figures = []
         # Add QualityControl overview of the plates as heatmaps:
-        result_figures.append(
-            Result("QualityControl", "plateheatmaps", figure=self.plateheatmap)
-        )
-
-        result_figures.append(
-            Result("QualityControl", "zfactor_heatmap", figure=get_zfactor_heatmap(self.processed, y_rows=self._ast_barcode_header))
-        )
+        for measurement_label in self._measurement_labels:
+            result_figures.append(
+                Result("QualityControl", f"{measurement_label} plateheatmaps", figure=self.plateheatmap(
+                    self.processed[self.processed["Measurement Type"] == measurement_label],
+                    measurement=measurement_label)
+                )
+            )
+            result_figures.append(
+                Result("QualityControl", f"{measurement_label} zfactor_heatmap", figure=get_zfactor_heatmap(
+                    self.processed[self.processed["Measurement Type"] == measurement_label],
+                    y_rows=self._ast_barcode_header
+                    )
+                )
+            )
         # If precipitation testing was done, add it to QC result figures:
-        if not self.precipitation.results.empty:
+        if self.precipitation is not None and not self.precipitation.results.empty:
             result_figures.append(
                 Result(
                     "QualityControl",
@@ -560,75 +579,80 @@ class PrimaryScreen(Experiment):
                 )
             )
 
-        for threshold in self.thresholds:
-            result_figures.append(
-                Result(
-                    "QualityControl",
-                    "Scatter_Measurement_vs_BScore_Substances",
-                    figure=measurement_vs_bscore_scatter(
-                        self._processed_only_substances,
-                        measurement_header="Relative Optical Density",
-                        measurement_title="Relative Optical Density",
-                        bscore_header="b_scores",
-                        bscore_title="B-Score",
-                        color_header="Dataset",
-                        measurement_threshold=threshold,
-                        b_score_threshold=self.b_score_threshold,
-                    ).facet(row="Organism", column="Dataset"),
-                )
-            )
-            result_figures.append(
-                Result(
-                    "QualityControl",
-                    "Scatter_Measurement_vs_BScore_References",
-                    figure=measurement_vs_bscore_scatter(
-                        self.processed[
-                            self.processed["Dataset"] == "Reference"
-                        ].replace({np.nan: None}),
-                        measurement_header="Relative Optical Density",
-                        measurement_title="Relative Optical Density",
-                        bscore_header="b_scores",
-                        bscore_title="B-Score",
-                        color_header="Dataset",
-                        measurement_threshold=threshold,
-                        b_score_threshold=self.b_score_threshold,
-                    ).facet(row="Organism", column="Dataset"),
-                )
-            )
-
-            subset = get_thresholded_subset(
-                self._processed_only_substances,
-                id_column="Internal ID",
-                negative_controls=self._negative_controls,
-                blanks=self._blanks,
-                threshold=threshold,
-            )
-            for dataset, sub_df in subset.groupby("Dataset"):
-                dataset_name = str(dataset)
-                dummy_df = get_upsetplot_df(sub_df, counts_column="Internal ID")
-
+        for measurement_label in self._measurement_labels:
+            measurement_processed_only_substances = self._processed_only_substances[self._processed_only_substances["Measurement Type"] == measurement_label]
+            for threshold in self.thresholds:
                 result_figures.append(
                     Result(
-                        dataset_name,
-                        f"UpSetPlot_{dataset_name}",
-                        figure=UpSetAltair(dummy_df, title=dataset_name),
-                    )
-                )
-                # ---
-                only_actives = self.results[f"{dataset_name}_all_results"][
-                    self.results[f"{dataset_name}_all_results"]
-                    .groupby("Organism")["Relative Optical Density mean"]
-                    .transform(lambda x: x < threshold)
-                ]
-                result_figures.append(
-                    Result(
-                        dataset_name,
-                        f"Scatterplot_BScores_{dataset_name}",
+                        "QualityControl",
+                        f"Scatter_{measurement_label}_vs_BScore_Substances",
                         figure=measurement_vs_bscore_scatter(
-                            only_actives, show_area=False
-                        ),
+                            measurement_processed_only_substances,
+                            measurement_header=f"Relative {measurement_label}",
+                            measurement_title=f"Relative {measurement_label}",
+                            bscore_header="b_scores",
+                            bscore_title="B-Score",
+                            color_header="Dataset",
+                            measurement_threshold=threshold,
+                            b_score_threshold=self.b_score_threshold,
+                        ).facet(row="Organism", column="Dataset"),
                     )
                 )
+                result_figures.append(
+                    Result(
+                        "QualityControl",
+                        f"Scatter_{measurement_label}_vs_BScore_References",
+                        figure=measurement_vs_bscore_scatter(
+                            self.processed[
+                                self.processed["Dataset"] == "Reference"
+                            ].replace({np.nan: None}),
+                            measurement_header=f"Relative {measurement_label}",
+                            measurement_title=f"Relative {measurement_label}",
+                            bscore_header="b_scores",
+                            bscore_title="B-Score",
+                            color_header="Dataset",
+                            measurement_threshold=threshold,
+                            b_score_threshold=self.b_score_threshold,
+                        ).facet(row="Organism", column="Dataset"),
+                    )
+                )
+
+                subset = get_thresholded_subset(
+                    measurement_processed_only_substances,
+                    id_column="Internal ID",
+                    negative_controls=self._negative_controls,
+                    blanks=self._blanks,
+                    threshold=threshold,
+                )
+                for dataset, sub_df in subset.groupby("Dataset"):
+                    dataset_name = str(dataset)
+                    dummy_df = get_upsetplot_df(sub_df, counts_column="Internal ID")
+
+                    result_figures.append(
+                        Result(
+                            dataset_name,
+                            f"UpSetPlot_{measurement_label}_{dataset_name}",
+                            figure=UpSetAltair(dummy_df, title=dataset_name),
+                        )
+                    )
+                    # ---
+                    only_actives = self.results[f"{dataset_name}_{measurement_label}_all_results"][
+                        self.results[f"{dataset_name}_{measurement_label}_all_results"]
+                        .groupby("Organism")[f"Relative Measurement mean"]
+                        .transform(lambda x: x < threshold)
+                    ]
+                    result_figures.append(
+                        Result(
+                            dataset_name,
+                            f"Scatterplot_BScores_{measurement_label}_{dataset_name}",
+                            figure=measurement_vs_bscore_scatter(
+                                only_actives, 
+                                measurement_header=f"Relative {measurement_label} mean",
+                                measurement_title=f"Relative {measurement_label}",
+                                show_area=False
+                            ),
+                        )
+                    )
         return result_figures
 
     @cached_property
@@ -641,169 +665,172 @@ class PrimaryScreen(Experiment):
         # result_plots = dict() # {"filepath": plot}
         result_tables = []
         # result_tables.append(Result("All", ))
+        # result_tables.append(Result("All", "Processed Data", table=self.processed))
+        for measurement_label in self._measurement_labels:
+            df = self.processed.copy().round(2)
+            df = df[df["Measurement Type"] == measurement_label]
+            df = df[
+                #(df["Dataset"] != "Reference")
+                (df["Dataset"] != "Positive Control")
+                & (df["Dataset"] != "Blank")
+            ].dropna(subset=["Concentration"])
 
-        df = self.processed.copy().round(2)
-        df = df[
-            #(df["Dataset"] != "Reference")
-            (df["Dataset"] != "Positive Control")
-            & (df["Dataset"] != "Blank")
-        ].dropna(subset=["Concentration"])
+            pivot_df = pd.pivot_table(
+                df,
+                values=[
+                    "Relative Measurement",
+                    "Replicate",
+                    "Z-Factor",
+                    "Robust Z-Factor",
+                    "Measurement b_scores",
+                ],
+                index=[
+                    "Internal ID",
+                    "Organism formatted",
+                    "Organism",
+                    "Concentration",
+                    "Unit",
+                    "Dataset",
+                    "Measurement Type"
+                ],
+                aggfunc={
+                    # We need lists here for MultiIndex, otherwise the returned DataFrame is flat
+                    "Relative Measurement": ["mean"],
+                    "Replicate": ["count"],
+                    "Measurement b_scores": ["mean"],
+                    "Z-Factor": ["mean"],
+                    "Robust Z-Factor": ["mean"],
+                },
+            ).reset_index().round(2)
+            pivot_df.columns = [" ".join(x).strip() for x in pivot_df.columns.ravel()]
+            molecule_columns = [col for col in ["InChI", "InChI-Key"] if col in df.columns]
+            molecule_info_df = (
+                df[["Internal ID"] + molecule_columns]
+                .dropna(subset=["Internal ID"])
+                .drop_duplicates("Internal ID")
+                if molecule_columns
+                else None
+            )
 
-        pivot_df = pd.pivot_table(
-            df,
-            values=[
-                "Relative Optical Density",
-                "Replicate",
-                "Z-Factor",
-                "Robust Z-Factor",
-                "b_scores",
-            ],
-            index=[
-                "Internal ID",
-                "Organism formatted",
-                "Organism",
-                "Concentration",
-                "Unit",
-                "Dataset",
-            ],
-            aggfunc={
-                # We need lists here for MultiIndex, otherwise the returned DataFrame is flat
-                "Relative Optical Density": ["mean"],
-                "Replicate": ["count"],
-                "b_scores": ["mean"],
-                "Z-Factor": ["mean"],
-                "Robust Z-Factor": ["mean"],
-            },
-        ).reset_index().round(2)
-        pivot_df.columns = [" ".join(x).strip() for x in pivot_df.columns.ravel()]
-        molecule_columns = [col for col in ["InChI", "InChI-Key"] if col in df.columns]
-        molecule_info_df = (
-            df[["Internal ID"] + molecule_columns]
-            .dropna(subset=["Internal ID"])
-            .drop_duplicates("Internal ID")
-            if molecule_columns
-            else None
-        )
+            for threshold in self.thresholds:
+                # Apply Threshold to % Growth:
+                for dataset, dataset_grp in pivot_df.groupby("Dataset"):
+                    dataset_name = str(dataset)
+                    if molecule_info_df is not None:
+                        dataset_grp = pd.merge(
+                            dataset_grp,
+                            molecule_info_df,
+                            how="left",
+                            on="Internal ID",
+                        )
+                    if self.precipitation is not None and not self.precipitation.results.empty and not self.substances_precipitation is None:
+                        dataset_grp = pd.merge(dataset_grp, self.substances_precipitation, how="outer")
+                        dataset_grp = dataset_grp[dataset_grp["Relative Measurement mean"].notna()]
 
-        for threshold in self.thresholds:
-            # Apply Threshold to % Growth:
-            for dataset, dataset_grp in pivot_df.groupby("Dataset"):
-                dataset_name = str(dataset)
-                if molecule_info_df is not None:
-                    dataset_grp = pd.merge(
-                        dataset_grp,
-                        molecule_info_df,
-                        how="left",
-                        on="Internal ID",
+                    result_tables.append(
+                        Result(dataset_name, f"{dataset_name}_{measurement_label}_all_results", table=dataset_grp)
                     )
-                if not self.precipitation.results.empty and not self.substances_precipitation is None:
-                    dataset_grp = pd.merge(dataset_grp, self.substances_precipitation, how="outer")
-                    dataset_grp = dataset_grp[dataset_grp["Relative Optical Density mean"].notna()]
 
-                result_tables.append(
-                    Result(dataset_name, f"{dataset_name}_all_results", table=dataset_grp)
-                )
-
-                # Apply threshold conditions:
-                thresholded_dataset_grp = dataset_grp.groupby("Internal ID").filter(
-                    lambda x: check_activity_conditions(
-                        x["Relative Optical Density mean"],
-                        x["b_scores mean"],
-                        threshold,
-                        self.b_score_threshold,
+                    # Apply threshold conditions:
+                    thresholded_dataset_grp = dataset_grp.groupby("Internal ID").filter(
+                        lambda x: check_activity_conditions(
+                            x["Relative Measurement mean"],
+                            x["Measurement b_scores mean"],
+                            threshold,
+                            self.b_score_threshold,
+                        )
                     )
-                )
 
-                # Pivot the long table for excel viewability:
-                pivot_multiindex_df = pd.pivot_table(
-                    thresholded_dataset_grp,
-                    values=["Relative Optical Density mean", "Z-Factor mean"],
-                    index=["Internal ID", "Dataset", "Concentration", "Unit"],
-                    columns="Organism formatted",
-                ).reset_index()
+                    # Pivot the long table for excel viewability:
+                    pivot_multiindex_df = pd.pivot_table(
+                        thresholded_dataset_grp,
+                        values=["Relative Measurement mean", "Z-Factor mean"],
+                        index=["Internal ID", "Dataset", "Concentration", "Unit", "Measurement Type"],
+                        columns="Organism formatted",
+                    ).reset_index()
 
 
-                # Sort rows by mean between the organisms (lowest mean measurement first)
-                results_sorted_by_mean_activity = pivot_multiindex_df.loc[
-                    pivot_multiindex_df.loc[
-                        :,
-                        list(
-                            filter(
-                                lambda x: x[0].startswith("Relative Optical Density"),
-                                pivot_multiindex_df.columns,
-                            )
-                        ),
-                    ]
-                    .mean(axis=1)
-                    .argsort()
-                ]
-                # Only try to merge if precipitation results exist and the precipitation dataframe is present
-                if not self.precipitation.results.empty and self.substances_precipitation is not None:
-                    # If pivot_table produced MultiIndex columns, flatten them to single level so pandas.merge works
-                    if isinstance(results_sorted_by_mean_activity.columns, pd.MultiIndex):
-                        results_sorted_by_mean_activity.columns = [
-                            " ".join(col).strip() if isinstance(col, tuple) else col
-                            for col in results_sorted_by_mean_activity.columns
+                    # Sort rows by mean between the organisms (lowest mean measurement first)
+                    results_sorted_by_mean_activity = pivot_multiindex_df.loc[
+                        pivot_multiindex_df.loc[
+                            :,
+                            list(
+                                filter(
+                                    lambda x: x[0].startswith("Relative Measurement"),
+                                    pivot_multiindex_df.columns,
+                                )
+                            ),
                         ]
-                    # Merge explicitly on Internal ID to avoid ambiguous/level-mismatch merges
-                    results_sorted_by_mean_activity = pd.merge(
-                        results_sorted_by_mean_activity,
-                        self.substances_precipitation,
-                        how="left",
-                        on=["Internal ID", "Concentration"],
+                        .mean(axis=1)
+                        .argsort()
+                    ]
+                    # Only try to merge if precipitation results exist and the precipitation dataframe is present
+                    if self.precipitation is not None and not self.precipitation.results.empty and self.substances_precipitation is not None:
+                        # If pivot_table produced MultiIndex columns, flatten them to single level so pandas.merge works
+                        if isinstance(results_sorted_by_mean_activity.columns, pd.MultiIndex):
+                            results_sorted_by_mean_activity.columns = [
+                                " ".join(col).strip() if isinstance(col, tuple) else col
+                                for col in results_sorted_by_mean_activity.columns
+                            ]
+                        # Merge explicitly on Internal ID to avoid ambiguous/level-mismatch merges
+                        results_sorted_by_mean_activity = pd.merge(
+                            results_sorted_by_mean_activity,
+                            self.substances_precipitation,
+                            how="left",
+                            on=["Internal ID", "Concentration"],
+                        )
+                    if molecule_info_df is not None:
+                        results_sorted_by_mean_activity = pd.merge(
+                            results_sorted_by_mean_activity,
+                            molecule_info_df,
+                            how="left",
+                            on="Internal ID",
+                        )
+
+                    # Correct "mean" header if its only one replicate (remove 'mean')
+                    if sum(thresholded_dataset_grp["Replicate count"].unique()) == 1:
+                        results_sorted_by_mean_activity = results_sorted_by_mean_activity.rename(
+                            columns={
+                                "Relative Measurement mean": "Relative Measurement",
+                                # "b_scores mean": "B-Score",
+                            }
+                        )
+
+                    # results_sorted_by_mean_activity = (
+                    #     results_sorted_by_mean_activity.rename(
+                    #         columns={"b_scores mean": "B-Score mean"}
+                    #     )
+                    # )
+
+                    results_sorted_by_mean_activity = (
+                        results_sorted_by_mean_activity.fillna("NA")
+                    )  # Fill NA for better excel readability
+
+                    # Add Concentration Unit column if available
+                    # unit_values = self._dilutions.get("Unit")
+                    # unit_val = unit_values.dropna().iloc[0] if unit_values is not None and not unit_values.dropna().empty else None
+                    # if "Concentration" in results_sorted_by_mean_activity.columns:
+                    #     concentration_idx = results_sorted_by_mean_activity.columns.get_loc("Concentration")
+                    #     if not isinstance(concentration_idx, (int, np.integer)):
+                    #         raise ValueError(
+                    #             "Expected exactly one 'Concentration' column when building the results table."
+                    #         )
+                    #     concentration_idx = int(concentration_idx)
+                    #     before_cols = list(results_sorted_by_mean_activity.columns[: concentration_idx + 1])
+                    #     after_cols = list(results_sorted_by_mean_activity.columns[concentration_idx + 1 :])
+                    #     results_sorted_by_mean_activity = results_sorted_by_mean_activity.reindex(columns=before_cols + ["Concentration Unit"] + after_cols)
+                    #     results_sorted_by_mean_activity["Concentration Unit"] = unit_val
+                    # else:
+                    #     results_sorted_by_mean_activity["Concentration Unit"] = unit_val
+
+
+                    result_tables.append(
+                        Result(
+                            dataset_name,
+                            f"{dataset_name}_{measurement_label}_threshold{round(threshold)}_results",
+                            table=results_sorted_by_mean_activity,
+                        )
                     )
-                if molecule_info_df is not None:
-                    results_sorted_by_mean_activity = pd.merge(
-                        results_sorted_by_mean_activity,
-                        molecule_info_df,
-                        how="left",
-                        on="Internal ID",
-                    )
-
-                # Correct "mean" header if its only one replicate (remove 'mean')
-                if sum(thresholded_dataset_grp["Replicate count"].unique()) == 1:
-                    results_sorted_by_mean_activity = results_sorted_by_mean_activity.rename(
-                        columns={
-                            "Relative Optical Density mean": "Relative Optical Density",
-                            # "b_scores mean": "B-Score",
-                        }
-                    )
-
-                # results_sorted_by_mean_activity = (
-                #     results_sorted_by_mean_activity.rename(
-                #         columns={"b_scores mean": "B-Score mean"}
-                #     )
-                # )
-
-                results_sorted_by_mean_activity = (
-                    results_sorted_by_mean_activity.fillna("NA")
-                )  # Fill NA for better excel readability
-
-                # Add Concentration Unit column if available
-                # unit_values = self._dilutions.get("Unit")
-                # unit_val = unit_values.dropna().iloc[0] if unit_values is not None and not unit_values.dropna().empty else None
-                # if "Concentration" in results_sorted_by_mean_activity.columns:
-                #     concentration_idx = results_sorted_by_mean_activity.columns.get_loc("Concentration")
-                #     if not isinstance(concentration_idx, (int, np.integer)):
-                #         raise ValueError(
-                #             "Expected exactly one 'Concentration' column when building the results table."
-                #         )
-                #     concentration_idx = int(concentration_idx)
-                #     before_cols = list(results_sorted_by_mean_activity.columns[: concentration_idx + 1])
-                #     after_cols = list(results_sorted_by_mean_activity.columns[concentration_idx + 1 :])
-                #     results_sorted_by_mean_activity = results_sorted_by_mean_activity.reindex(columns=before_cols + ["Concentration Unit"] + after_cols)
-                #     results_sorted_by_mean_activity["Concentration Unit"] = unit_val
-                # else:
-                #     results_sorted_by_mean_activity["Concentration Unit"] = unit_val
-
-
-                result_tables.append(
-                    Result(
-                        dataset_name,
-                        f"{dataset_name}_threshold{round(threshold)}_results",
-                        table=results_sorted_by_mean_activity,
-                    )
-                )
         return result_tables
 
     @cached_property
@@ -823,6 +850,8 @@ class PrimaryScreen(Experiment):
     ):
         pathlib.Path(processed_path).mkdir(parents=True, exist_ok=True)
         self.processed.to_csv(os.path.join(processed_path, "processed.csv"))
+        self.rawdata.to_csv(os.path.join(processed_path, "rawdata.csv"))
+        self.metadata.to_csv(os.path.join("../data/meta/", "metadata.csv"))
         _save_tables(result_path, self._resulttables, fileformats=fileformats)
 
     def save_results(
@@ -867,8 +896,13 @@ class MIC(Experiment):  # Minimum Inhibitory Concentration
         molecule_df: pd.DataFrame | None = None,
         molecule_external_id_column: str = "External ID",
         molecule_column: str = "mol",
+        resultmatrix_header_mapping: Optional[Dict[str, str]] = None,
     ):
-        super().__init__(rawfiles_folderpath, plate_type)
+        super().__init__(
+            rawfiles_folderpath,
+            plate_type,
+            resultmatrix_header_mapping=resultmatrix_header_mapping,
+        )
         self._inputfile_path = inputfile_path
         self._mp_ast_mapping_filepath = mp_ast_mapping_filepath
         self._ast_acd_mapping_filepath = ast_acd_mapping_filepath
