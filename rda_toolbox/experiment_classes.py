@@ -588,7 +588,7 @@ class PrimaryScreen(Experiment):
                 result_figures.append(
                     Result(
                         "QualityControl",
-                        f"Scatter_{measurement_label}_vs_BScore_Substances",
+                        f"Scatter_{measurement_label}_vs_BScore_Substances_{threshold}",
                         figure=measurement_vs_bscore_scatter(
                             measurement_processed_only_substances,
                             measurement_header=f"Relative Measurement",
@@ -604,7 +604,7 @@ class PrimaryScreen(Experiment):
                 result_figures.append(
                     Result(
                         "QualityControl",
-                        f"Scatter_{measurement_label}_vs_BScore_References",
+                        f"Scatter_{measurement_label}_vs_BScore_References_{threshold}",
                         figure=measurement_vs_bscore_scatter(
                             self.processed[
                                 self.processed["Dataset"] == "Reference"
@@ -634,7 +634,7 @@ class PrimaryScreen(Experiment):
                     result_figures.append(
                         Result(
                             dataset_name,
-                            f"UpSetPlot_{measurement_label}_{dataset_name}",
+                            f"UpSetPlot_{measurement_label}_{dataset_name}_{threshold}",
                             figure=UpSetAltair(dummy_df, title=dataset_name),
                         )
                     )
@@ -647,7 +647,7 @@ class PrimaryScreen(Experiment):
                     result_figures.append(
                         Result(
                             dataset_name,
-                            f"Scatterplot_BScores_{measurement_label}_{dataset_name}",
+                            f"Scatterplot_BScores_{measurement_label}_{dataset_name}_{threshold}",
                             figure=measurement_vs_bscore_scatter(
                                 only_actives, 
                                 measurement_header=f"Relative {measurement_label} mean",
