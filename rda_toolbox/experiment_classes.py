@@ -74,7 +74,7 @@ class Experiment:
         self,
         rawfiles_folderpath: Optional[str],
         plate_type: int,
-        resultmatrix_header_mapping: Dict[str, str] = {"Results": "Raw Optical Density"},
+        resultmatrix_header_mapping: Dict[str, str] = {"Results": "Optical Density"},
     ):
         self._plate_type = plate_type
         self._rows, self._columns = get_rows_cols(plate_type)
@@ -226,7 +226,8 @@ class Precipitation(Experiment):
     @property
     def limit_of_quantification(self):  # "Bestimmungsmaß"
         background = self.rawdata_w_layout[
-            self.rawdata_w_layout["Layout"] == "Background"
+            (self.rawdata_w_layout["Layout"] == "Background") &
+            (self.rawdata_w_layout["Measurement Type"] == self._measurement_label)
         ]["Measurement"]
         loq = round(background.mean() + 10 * background.std(), 3)
         self.rawdata_w_layout["Limit of Quantification"] = loq
@@ -267,7 +268,7 @@ class Precipitation(Experiment):
         text = base.mark_text(baseline="middle", align="center", fontSize=7).encode(
             alt.Text(f"Measurement:Q", format=".1f"),
             color=alt.condition(
-                alt.datum[self._measurement_label]
+                alt.datum["Measurement"]
                 < max(self.results["Measurement"]) / 2,
                 alt.value("black"),
                 alt.value("white"),
@@ -325,7 +326,7 @@ class PrimaryScreen(Experiment):
         molecule_df: pd.DataFrame | None = None,
         molecule_external_id_column: str = "External ID",
         molecule_column: str = "mol",
-        cyt10_matrixheader_mapping: Dict[str, str] = {"Result": "Raw Optical Density"},
+        cyt10_matrixheader_mapping: Dict[str, str] = {"Results": "Raw Optical Density"},
     ):
         super().__init__(
             rawfiles_folderpath,
@@ -430,9 +431,10 @@ class PrimaryScreen(Experiment):
                 self._processed_only_substances[
                     self._processed_only_substances["Dataset"] != "Negative Control"
                 ]
-                .drop_duplicates(
-                    ["Internal ID", self._ast_barcode_header, "Row_384", "Col_384"]
-                )
+                # .drop_duplicates(
+                #     ["Internal ID", self._ast_barcode_header, "Row_384", "Col_384"]
+                # )
+                .dropna(subset="Precipitated")
                 .loc[
                     :,
                     [
@@ -450,6 +452,7 @@ class PrimaryScreen(Experiment):
         )
 
     def check_substances(self):
+        print(self.substances_precipitation)
         """
         Do some sanity checks for the substances table.
         - Check if all necessary columns are present.
@@ -588,7 +591,7 @@ class PrimaryScreen(Experiment):
                         f"Scatter_{measurement_label}_vs_BScore_Substances",
                         figure=measurement_vs_bscore_scatter(
                             measurement_processed_only_substances,
-                            measurement_header=f"Relative {measurement_label}",
+                            measurement_header=f"Relative Measurement",
                             measurement_title=f"Relative {measurement_label}",
                             bscore_header="b_scores",
                             bscore_title="B-Score",
@@ -668,6 +671,8 @@ class PrimaryScreen(Experiment):
         # result_tables.append(Result("All", "Processed Data", table=self.processed))
         for measurement_label in self._measurement_labels:
             df = self.processed.copy().round(2)
+            # drop duplicate lines on the minimum number of needed columns (to detect actual duplicates)
+            df = df.drop_duplicates()
             df = df[df["Measurement Type"] == measurement_label]
             df = df[
                 #(df["Dataset"] != "Reference")
@@ -711,7 +716,6 @@ class PrimaryScreen(Experiment):
                 if molecule_columns
                 else None
             )
-
             for threshold in self.thresholds:
                 # Apply Threshold to % Growth:
                 for dataset, dataset_grp in pivot_df.groupby("Dataset"):
@@ -726,7 +730,7 @@ class PrimaryScreen(Experiment):
                     if self.precipitation is not None and not self.precipitation.results.empty and not self.substances_precipitation is None:
                         dataset_grp = pd.merge(dataset_grp, self.substances_precipitation, how="outer")
                         dataset_grp = dataset_grp[dataset_grp["Relative Measurement mean"].notna()]
-
+                    dataset_grp = dataset_grp.drop_duplicates()
                     result_tables.append(
                         Result(dataset_name, f"{dataset_name}_{measurement_label}_all_results", table=dataset_grp)
                     )

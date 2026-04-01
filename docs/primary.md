@@ -35,6 +35,25 @@ primary = rda.PrimaryScreen(
 )
 ```
 
+### Cytation 10 readout table header
+In the Cytation C10 reader software you can define things like table headers.
+To detect the result matrix and be flexible in naming this table, the keyword `cyt10_matrixheader_mapping` was introduced.
+The default value for this keyword is `cyt10_matrixheader_mapping = {"Result": "Raw Optical Density"}` (Usually its better to leave out the "Raw").
+
+```Python
+import rda_toolbox as rda
+
+primary = rda.PrimaryScreen(
+    rawfiles_folderpath="../data/raw/24 h/",
+    inputfile_path="../data/input/PrimaryScreen_mapped_Input.xlsx",
+    mappingfile_path="../data/input/AmA_AsT_AcD_20260317.txt",
+    precipitation_rawfilepath="../data/raw/Precipitation/",
+    cyt10_matrixheader_mapping={"Read 1:554,593": "Fluorescence", "Read 2:450": "Optical Density"},
+    needs_mapping=False,
+    negative_controls="Organism + Medium",
+)
+```
+
 Its possible to inspect the assay object:
 
 ```Python
