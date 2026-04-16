@@ -736,6 +736,13 @@ class PrimaryScreen(Experiment):
                     )
 
                     # Apply threshold conditions:
+                    # thresholded_dataset_grp = get_thresholded_subset(
+                    #     dataset_grp,
+                    #     id_column="Internal ID",
+                    #     negative_controls=self._negative_controls,
+                    #     blanks=self._blanks,
+                    #     threshold=threshold,
+                    # )
                     thresholded_dataset_grp = dataset_grp.groupby("Internal ID").filter(
                         lambda x: check_activity_conditions(
                             x["Relative Measurement mean"],
@@ -809,7 +816,8 @@ class PrimaryScreen(Experiment):
                     results_sorted_by_mean_activity = (
                         results_sorted_by_mean_activity.fillna("NA")
                     )  # Fill NA for better excel readability
-
+                    # Remove possible duplicate rows (e.g. from merging precipitation data) while keeping all columns (including molecule info if present)
+                    results_sorted_by_mean_activity = results_sorted_by_mean_activity.drop_duplicates()
                     # Add Concentration Unit column if available
                     # unit_values = self._dilutions.get("Unit")
                     # unit_val = unit_values.dropna().iloc[0] if unit_values is not None and not unit_values.dropna().empty else None
