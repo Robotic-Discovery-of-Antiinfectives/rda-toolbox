@@ -739,14 +739,16 @@ def check_activity_conditions(
         ):
     check_conditions = []
     for i, value in enumerate(organism_measurements):
+        # print(organism_bscores, bscore_threshold)
         if value < measurement_threshold:  # If below growth threshold:
-            if (
-                    # Check if the sample which seems 'active' for ONE organism has a viable B-Score for this exact organism
-                    list(organism_bscores)[i] < bscore_threshold
-                    ):  # AND if below B-Score threshold
-                check_conditions.append(True)
-            else:
-                check_conditions.append(False)
+            check_conditions.append(True)
+            # if (
+            #         # Check if the sample which seems 'active' for ONE organism has a viable B-Score for this exact organism
+            #         list(organism_bscores)[i] < bscore_threshold
+            #         ):  # AND if below B-Score threshold
+            #     check_conditions.append(True)
+            # else:
+            #     check_conditions.append(False)
         else:
             check_conditions.append(False)
     # print(check_conditions)
