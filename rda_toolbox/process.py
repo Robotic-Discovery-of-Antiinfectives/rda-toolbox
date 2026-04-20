@@ -244,21 +244,9 @@ def preprocess(
                 RuntimeWarning,
                 stacklevel=2,
             )
-            # measurement_df = measurement_df.dropna(subset=[f"Raw {measurement}"])
         measurement_df.round(2)
-        # df.round(
-        #     {
-        #         "Denoised Optical Density": 2,
-        #         "Relative Optical Density": 2,
-        #         "Z-Factor": 2,
-        #         "Robust Z-Factor": 2,
-        #         # "Concentration": 2,
-        #     }
-        # )
         preprocessed_measurement_types.append(measurement_df)
     return pd.concat(preprocessed_measurement_types)
-        # Report missing
-        # Remove missing from "processed" dataframe
 
 
 def get_thresholded_subset(
@@ -327,16 +315,17 @@ def mic_results(df, filepath, thresholds=[20, 50]):
     # Pivot table to get the aggregated values:
     pivot_df = pd.pivot_table(
         df,
-        values=["Relative Optical Density", "Replicate", "Z-Factor"],
+        values=["Relative Measurement", "Replicate", "Z-Factor"],
         index=[
             "Internal ID",
             "External ID",
             "Organism",
             "Concentration",
             "Dataset",
+            "Measurement Type",
         ],
         aggfunc={
-            "Relative Optical Density": ["mean"],
+            "Relative Measurement": ["mean"],
             "Replicate": ["count"],
             "Z-Factor": ["mean", "std"],  # does this make sense? with std its usable.
             # "Z-Factor": ["std"],
@@ -355,7 +344,7 @@ def mic_results(df, filepath, thresholds=[20, 50]):
         grp = grp[
             [
                 "Concentration",
-                "Relative Optical Density mean",
+                "Relative Measurement mean",
                 "Z-Factor mean",
                 "Z-Factor std",
             ]
@@ -372,12 +361,12 @@ def mic_results(df, filepath, thresholds=[20, 50]):
 
         for threshold in thresholds:
             values_below_threshold = grp[
-                grp["Relative Optical Density mean"] < threshold
+                grp["Relative Measurement mean"] < threshold
             ]
             # thx to jonathan - check if the OD at maximum concentration is below threshold (instead of any concentration)
             max_conc_below_threshold = list(
                 grp[grp["Concentration"] == max(grp["Concentration"])][
-                    "Relative Optical Density mean"
+                    "Relative Measurement mean"
                 ]
                 < threshold
             )[0]
@@ -472,11 +461,11 @@ def references_mic_results(
             "Z-Factor": list(grp["Z-Factor"])[0],
         }
         for threshold in thresholds:
-            values_below_threshold = grp[grp["Relative Optical Density"] < threshold]
+            values_below_threshold = grp[grp["Relative Measurement"] < threshold]
             # thx to jonathan - check if the OD at maximum concentration is below threshold (instead of any concentration)
             max_conc_below_threshold = list(
                 grp[grp["Concentration"] == max(grp["Concentration"])][
-                    "Relative Optical Density"
+                    "Relative Measurement"
                 ]
                 < threshold
             )[0]
@@ -560,7 +549,7 @@ def primary_results(
 
     pivot_df = pd.pivot_table(
         df,
-        values=["Relative Optical Density", "Replicate", "Z-Factor"],
+        values=["Relative Measurement", "Replicate", "Z-Factor"],
         index=[
             substance_id,
             "Organism",
@@ -568,7 +557,7 @@ def primary_results(
             "Dataset",
         ],
         aggfunc={
-            "Relative Optical Density": ["mean"],
+            "Relative Measurement": ["mean"],
             "Replicate": ["count"],
         },
     ).reset_index()
@@ -577,7 +566,7 @@ def primary_results(
     for threshold in thresholds:
         pivot_df[f"Relative Growth < {threshold}"] = pivot_df.groupby(
             [substance_id, "Organism", "Dataset"]
-        )["Relative Optical Density mean"].transform(lambda x: x < threshold)
+        )["Relative Measurement mean"].transform(lambda x: x < threshold)
 
         for dataset, dataset_grp in pivot_df.groupby(["Dataset"]):
             dataset = dataset[0]
@@ -603,7 +592,7 @@ def primary_results(
 
             pivot_multiindex_df = pd.pivot_table(
                 dataset_grp,
-                values=[f"Relative Optical Density mean"],
+                values=[f"Relative Measurement mean"],
                 index=[substance_id, "Dataset", "Concentration"],
                 columns="Organism",
             ).reset_index()

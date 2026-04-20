@@ -164,7 +164,7 @@ def split_position(
     return target_df
 
 
-def get_selection(df, threshold_value, x_column="Relative Optical Density"):
+def get_selection(df, threshold_value, x_column="Relative Measurement"):
     """
     Apply this ahead of get_upsetplot_df (to obtain dummies df).
     After all the above, apply UpSetAltair.
@@ -492,21 +492,21 @@ def prepare_visualization(
     df.loc[:, "Used Replicates"] = df.groupby([by_id, "Concentration", "Organism"])[
         ["Replicate"]
     ].transform("count")
-    df.loc[:, "Mean Relative Optical Density"] = (
-        df.groupby([by_id, "Concentration", "Organism"])[["Relative Optical Density"]]
+    df.loc[:, "Mean Relative Measurement"] = (
+        df.groupby([by_id, "Concentration", "Organism"])[["Relative Measurement"]]
         .transform("mean")
         .round(2)
     )
-    df.loc[:, "Std. Relative Optical Density"] = (
-        df.groupby([by_id, "Concentration", "Organism"])[["Relative Optical Density"]]
+    df.loc[:, "Std. Relative Measurement"] = (
+        df.groupby([by_id, "Concentration", "Organism"])[["Relative Measurement"]]
         .transform("std")
         .round(2)
     )
     df.loc[:, "uerror"] = (
-        df["Mean Relative Optical Density"] + df["Std. Relative Optical Density"]
+        df["Mean Relative Measurement"] + df["Std. Relative Measurement"]
     )
     df.loc[:, "lerror"] = (
-        df["Mean Relative Optical Density"] - df["Std. Relative Optical Density"]
+        df["Mean Relative Measurement"] - df["Std. Relative Measurement"]
     )
     tmp_list: list[pd.DataFrame] = []
     for _, grp in df.groupby([by_id, "Organism"]):
@@ -516,24 +516,15 @@ def prepare_visualization(
             grp[
                 (grp["Replicate"] == 1)
                 & (grp["Concentration"] == grp["Concentration"].max())
-            ]["Mean Relative Optical Density"]
+            ]["Mean Relative Measurement"]
             < threshold
         )
         grp["max_conc_below_threshold"] = list(maxconc_below_threshold)[0]
         tmp_list.append(grp)
-        # .sort_values(by=["Concentration"], ascending=False)
-        # grp_sorted[grp_sorted["Concentration"] == 50]["Mean Relative Optical Density"]
-        # print(grp.aggregate())
     df = pd.concat(tmp_list)
-    # df["highest_conc_bigger_50"] = df.groupby([by_id, "Organism"])[
-    #     ["Mean Relative Optical Density"]
-    # ].transform(
-    #     lambda meas_per_conc: list(meas_per_conc)[0] > 50
-    # )
-    # print(df)
 
     df["at_all_conc_bigger_50"] = df.groupby([by_id, "Organism"])[
-        ["Mean Relative Optical Density"]
+        ["Mean Relative Measurement"]
     ].transform(lambda meas_per_conc: all([x > 50 for x in list(meas_per_conc)]))
     # Bin observations into artificial categories for plotting later:
     plot_groups = pd.DataFrame()

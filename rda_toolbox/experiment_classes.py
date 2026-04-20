@@ -908,13 +908,14 @@ class MIC(Experiment):  # Minimum Inhibitory Concentration
         molecule_df: pd.DataFrame | None = None,
         molecule_external_id_column: str = "External ID",
         molecule_column: str = "mol",
-        resultmatrix_header_mapping: Optional[Dict[str, str]] = None,
+        cyt10_matrixheader_mapping: Dict[str, str] = {"Results": "Raw Optical Density"},
     ):
         super().__init__(
             rawfiles_folderpath,
             plate_type,
-            resultmatrix_header_mapping=resultmatrix_header_mapping,
+            resultmatrix_header_mapping=cyt10_matrixheader_mapping,
         )
+        self._measurement_labels = cyt10_matrixheader_mapping.values()
         self._inputfile_path = inputfile_path
         self._mp_ast_mapping_filepath = mp_ast_mapping_filepath
         self._ast_acd_mapping_filepath = ast_acd_mapping_filepath
@@ -1189,8 +1190,13 @@ class MIC(Experiment):  # Minimum Inhibitory Concentration
                 single_subst_conc_rows = []
                 init_pos = int(subst_row["Col_384"].iloc[0]) - 1
                 col_positions_384 = [list(range(1, 23, 2)), list(range(2, 23, 2))]
+                # Check if Input.xlsx "Dilutions" sheet contains "Dataset" column (different concentrations per dataset)
+                if "Dataset" in self._dilutions:
+                    dataset_concentrations = list(self._dilutions[self._dilutions["Dataset"] == dataset]["Concentration"].unique())
+                else:  # The same concentrations are used for all datasets
+                    dataset_concentrations = list(self._dilutions["Concentration"].unique())
                 for col_i, conc in enumerate(
-                    list(self._dilutions[self._dilutions["Dataset"] == dataset]["Concentration"].unique())
+                    dataset_concentrations
                 ):
                     # Add concentration:
                     subst_row["Concentration"] = conc
@@ -1240,18 +1246,18 @@ class MIC(Experiment):  # Minimum Inhibitory Concentration
         return preprocess(
             self.mapped_input_df,
             substance_id="Internal ID",
-            measurement=self._measurement_label.strip(
-                "Raw "
-            ),  # I know this is weird, its because of how background_normalize_zfactor works,
+            # measurement=self._measurement_label.strip(
+            #     "Raw "
+            # ),  # I know this is weird, its because of how background_normalize_zfactor works,
             negative_controls=self._negative_controls,
             blanks=self._blanks,
             norm_by_barcode=self._norm_by_barcode,
         )
 
-    @cached_property
-    def plateheatmap(self):
+    # @cached_property
+    def plateheatmap(self, df, measurement="Raw Optical Density"):
         return plateheatmaps(
-            self.processed,
+            df,
             substance_id="Internal ID",
             barcode=self._norm_by_barcode,
             negative_control=self._negative_controls,
@@ -1263,13 +1269,21 @@ class MIC(Experiment):  # Minimum Inhibitory Concentration
 
     @cached_property
     def _resultfigures(self) -> list[Result]:
+
         result_figures = []
-        result_figures.append(
-            Result("QualityControl", "plateheatmaps", figure=self.plateheatmap)
-        )
-        result_figures.append(
-            Result("QualityControl", "zfactor_heatmap", figure=get_zfactor_heatmap(self.processed))
-        )
+        for measurement_label in self._measurement_labels:
+
+            result_figures.append(
+                Result("QualityControl", f"{measurement_label}_plateheatmaps", figure=self.plateheatmap(
+                    self.processed[self.processed["Measurement Type"] == measurement_label],
+                    measurement=measurement_label)
+                )
+            )
+            result_figures.append(
+                Result("QualityControl", f"{measurement_label}_zfactor_heatmap", figure=get_zfactor_heatmap(
+                    self.processed[self.processed["Measurement Type"] == measurement_label]
+                ))
+            )
         if (self.substances_precipitation is not None) and (
             not self.substances_precipitation.empty
         ):
@@ -1281,118 +1295,129 @@ class MIC(Experiment):  # Minimum Inhibitory Concentration
                 )
             )
 
-        # Save plots per dataset:
-        processed_negative_zfactor = self._processed_only_substances[
-            self._processed_only_substances["Z-Factor"] < 0
-        ]
-        if (
-            not processed_negative_zfactor.empty
-            and self._exclude_negative_zfactor == True
-        ):
-            print(
-                f"{len(processed_negative_zfactor["AsT Barcode 384"].unique())} plate(s) with negative Z-Factor detected for organisms '{", ".join(processed_negative_zfactor["Organism formatted"].unique())}'.\n",
-                "These plates will be excluded from the lineplots visualization!\n (If you want to include them, use the `exclude_negative_zfactors=False` flag of the MIC class)",
-            )
+        for measurement_label in self._measurement_labels:
+            measurement_processed_only_substances = self._processed_only_substances[self._processed_only_substances["Measurement Type"] == measurement_label]
+            # Save plots per dataset:
+            processed_negative_zfactor = measurement_processed_only_substances[
+                measurement_processed_only_substances["Z-Factor"] < 0
+            ]
+            if (
+                not processed_negative_zfactor.empty
+                and self._exclude_negative_zfactor == True
+            ):
+                print(
+                    f"{len(processed_negative_zfactor["AsT Barcode 384"].unique())} plate(s) with negative Z-Factor detected for organisms '{", ".join(processed_negative_zfactor["Organism formatted"].unique())}'.\n",
+                    "These plates will be excluded from the lineplots visualization!\n (If you want to include them, use the `exclude_negative_zfactors=False` flag of the MIC class)",
+                )
 
-        for dataset, dataset_data in self._processed_only_substances.groupby("Dataset"):
-            dataset_name = str(dataset)
-            # Look for and add the corresponding references for each dataset:
-            if "AcD Barcode 384" in dataset_data:
-                dataset_barcodes = list(dataset_data["AcD Barcode 384"].unique())
-                corresponding_dataset_references = self._references_results.loc[
-                    (
-                        self._references_results["AcD Barcode 384"].isin(
-                            dataset_barcodes
+            for dataset, dataset_data in measurement_processed_only_substances.groupby("Dataset"):
+                dataset_name = str(dataset)
+                # Look for and add the corresponding references for each dataset:
+                if "AcD Barcode 384" in dataset_data:
+                    dataset_barcodes = list(dataset_data["AcD Barcode 384"].unique())
+                    corresponding_dataset_references = self._references_results.loc[
+                        (
+                            self._references_results["AcD Barcode 384"].isin(
+                                dataset_barcodes
+                            )
                         )
-                    ),
+                        & (
+                            self._references_results["Measurement Type"]
+                            == measurement_label
+                        ),
+                        :,
+                    ]
+                else:
+                    corresponding_dataset_references = pd.DataFrame()
+
+                lineplots_input_df = pd.concat(
+                    [dataset_data, corresponding_dataset_references]
+                )
+                lineplots_input_df = lineplots_input_df.dropna(
+                    subset=["Concentration"]
+                ).loc[
+                    (lineplots_input_df["Dataset"] != "Negative Control")
+                    & (lineplots_input_df["Dataset"] != "Blank"),
                     :,
                 ]
-            else:
-                corresponding_dataset_references = pd.DataFrame()
+                if not lineplots_input_df.empty:
+                    for threshold in self.thresholds:
+                        result_figures.append(
+                            Result(
+                                dataset_name,
+                                f"{dataset_name}_{measurement_label}_lineplots_facet_thrsh{threshold}_InternalID",
+                                figure=lineplots_facet(
+                                    lineplots_input_df,
+                                    by_id="Internal ID",
+                                    exclude_negative_zfactors=self._exclude_negative_zfactor,
+                                    threshold=threshold,
+                                ),
+                            )
+                        )
+                        result_figures.append(
+                            Result(
+                                dataset_name,
+                                f"{dataset_name}_{measurement_label}_lineplots_facet_thrsh{threshold}_ExternalID",
+                                figure=lineplots_facet(
+                                    lineplots_input_df,
+                                    by_id="External ID",
+                                    exclude_negative_zfactors=self._exclude_negative_zfactor,
+                                    threshold=threshold,
+                                ),
+                            )
+                        )
 
-            lineplots_input_df = pd.concat(
-                [dataset_data, corresponding_dataset_references]
-            )
-            lineplots_input_df = lineplots_input_df.dropna(
-                subset=["Concentration"]
-            ).loc[
-                (lineplots_input_df["Dataset"] != "Negative Control")
-                & (lineplots_input_df["Dataset"] != "Blank"),
-                :,
-            ]
-            if not lineplots_input_df.empty:
-                for threshold in self.thresholds:
+            # Save plots per threshold:
+            for threshold in self.thresholds:
+                for dataset, dataset_mic_df in self.mic_df.groupby("Dataset"):
+                    sub_df = dataset_mic_df[
+                        dataset_mic_df["Measurement Type"] == measurement_label
+                    ].copy()
+                    dataset_name = str(dataset)
+                    sub_df = sub_df.dropna(subset=f"MIC{threshold} in µM")
+                    if sub_df.empty:
+                        print(
+                            f"No MICs for dataset: {dataset_name}, measurement: {measurement_label}, threshold: {threshold}"
+                        )
+                        continue
+                    dummy_df = get_upsetplot_df(
+                        sub_df,
+                        counts_column="Internal ID",
+                        set_column="Organism",
+                    )
+
                     result_figures.append(
                         Result(
                             dataset_name,
-                            f"{dataset_name}_lineplots_facet_thrsh{threshold}_InternalID",
-                            figure=lineplots_facet(
-                                lineplots_input_df,
-                                by_id="Internal ID",
-                                exclude_negative_zfactors=self._exclude_negative_zfactor,
-                                threshold=threshold,
-                            ),
+                            f"{dataset_name}_{measurement_label}_UpSetPlot",
+                            figure=UpSetAltair(dummy_df, title=dataset_name),
                         )
                     )
                     result_figures.append(
                         Result(
                             dataset_name,
-                            f"{dataset_name}_lineplots_facet_thrsh{threshold}_ExternalID",
-                            figure=lineplots_facet(
-                                lineplots_input_df,
-                                by_id="External ID",
-                                exclude_negative_zfactors=self._exclude_negative_zfactor,
-                                threshold=threshold,
-                            ),
+                            f"{dataset_name}_{measurement_label}_PotencyDistribution",
+                            figure=potency_distribution(sub_df, threshold, dataset_name),
                         )
                     )
-
-        # Save plots per threshold:
-        for threshold in self.thresholds:
-            for dataset, sub_df in self.mic_df.groupby("Dataset"):
-                dataset_name = str(dataset)
-                # print(sub_df)
-                sub_df = sub_df.dropna(subset=f"MIC{threshold} in µM")
-                if sub_df.empty:
-                    print(f"No MICs for dataset: {dataset_name}, threshold: {threshold}")
-                    continue
-                dummy_df = get_upsetplot_df(
-                    sub_df,
-                    counts_column="Internal ID",
-                    set_column="Organism",
-                )
-
-                result_figures.append(
-                    Result(
-                        dataset_name,
-                        f"{dataset_name}_UpSetPlot",
-                        figure=UpSetAltair(dummy_df, title=dataset_name),
-                    )
-                )
-                result_figures.append(
-                    Result(
-                        dataset_name,
-                        f"{dataset_name}_PotencyDistribution",
-                        figure=potency_distribution(sub_df, threshold, dataset_name),
-                    )
-                )
         return result_figures
 
     def get_mic_df(self, df):
 
         pivot_df = pd.pivot_table(
             df,
-            values=["Relative Optical Density", "Replicate", "Z-Factor", "Robust Z-Factor"],
+            values=["Relative Measurement", "Replicate", "Z-Factor", "Robust Z-Factor"],
             index=[
                 "Internal ID",
                 # "External ID",
+                "Measurement Type",
                 "Organism formatted",
                 "Organism",
                 "Concentration",
                 "Dataset",
             ],
             aggfunc={
-                "Relative Optical Density": ["mean"],
+                "Relative Measurement": ["mean"],
                 "Replicate": ["count"],
                 "Z-Factor": ["mean", "std"],
                 "Robust Z-Factor": ["mean", "std"],
@@ -1405,14 +1430,14 @@ class MIC(Experiment):  # Minimum Inhibitory Concentration
 
         mic_records = []
         for group_names, grp in pivot_df.groupby(
-            ["Internal ID", "Organism formatted", "Dataset"]
+            ["Internal ID", "Measurement Type", "Organism formatted", "Dataset"]
         ):
-            internal_id, organism_formatted, dataset = group_names
+            internal_id, measurement_type, organism_formatted, dataset = group_names
             # Sort by concentration just to be sure:
             grp = grp[
                 [
                     "Concentration",
-                    "Relative Optical Density mean",
+                    "Relative Measurement mean",
                     "Z-Factor mean",
                     "Z-Factor std",
                     "Robust Z-Factor mean",
@@ -1423,6 +1448,7 @@ class MIC(Experiment):  # Minimum Inhibitory Concentration
             # Get rows where the OD is below the given threshold:
             record = {
                 "Internal ID": internal_id,
+                "Measurement Type": measurement_type,
                 "Organism formatted": organism_formatted,
                 "Dataset": dataset,
                 "Z-Factor mean": list(grp["Z-Factor mean"])[0],
@@ -1433,12 +1459,12 @@ class MIC(Experiment):  # Minimum Inhibitory Concentration
 
             for threshold in self.thresholds:
                 values_below_threshold = grp[
-                    grp["Relative Optical Density mean"] < threshold
+                    grp["Relative Measurement mean"] < threshold
                 ]
                 # thx to jonathan - check if the OD at maximum concentration is below threshold (instead of any concentration)
                 max_conc_below_threshold = list(
                     grp[grp["Concentration"] == max(grp["Concentration"])][
-                        "Relative Optical Density mean"
+                        "Relative Measurement mean"
                     ]
                     < threshold
                 )[0]
@@ -1454,8 +1480,16 @@ class MIC(Experiment):  # Minimum Inhibitory Concentration
         merge_columns = ["Internal ID", "External ID"] + [
             col for col in ["InChI", "InChI-Key"] if col in df.columns
         ]
-        mic_df = pd.merge(mic_df, df[merge_columns], on=["Internal ID"])
-        mic_df = pd.merge(mic_df, self._organisms[["Organism", "Organism formatted"]], on=["Organism formatted"])
+        mic_df = pd.merge(
+            mic_df,
+            df[merge_columns].drop_duplicates(),
+            on=["Internal ID"],
+        )
+        mic_df = pd.merge(
+            mic_df,
+            self._organisms[["Organism", "Organism formatted"]].drop_duplicates(),
+            on=["Organism formatted"],
+        )
         unit_values = self._dilutions.get("Unit")
         mic_df["Unit"] = unit_values.dropna().iloc[0] if unit_values is not None and not unit_values.dropna().empty else None
         mic_df = mic_df.drop_duplicates()
@@ -1495,96 +1529,103 @@ class MIC(Experiment):  # Minimum Inhibitory Concentration
         )
 
         for dataset, dataset_grp in mic_df.groupby("Dataset"):
-            dataset_name = str(dataset)
-            print(f"Preparing tables for dataset: {dataset_name}")
-            
-            # dataset_grp = dataset_grp.fillna("NA")
-            values_list = [f"MIC{threshold} in µM" for threshold in self.thresholds] + [
-                "Z-Factor mean",
-                "Z-Factor std",
-            ]
-            # create pivot without resetting index so we can manipulate the MultiIndex columns
-            pivot_df = pd.pivot_table(
-                dataset_grp,
-                values=values_list,
-                index=["Internal ID", "Dataset"],
-                columns="Organism",
-            )
+            for measurement_label in self._measurement_labels:
+                measurement_dataset_grp = dataset_grp[
+                    dataset_grp["Measurement Type"] == measurement_label
+                ].copy()
+                dataset_name = str(dataset)
+                print(f"Preparing tables for dataset: {dataset_name}")
+                print(f"and measurement label: {measurement_label}")
 
-            # ensure columns are a MultiIndex of (value, organism) even if only one value was pivoted
-            if not isinstance(pivot_df.columns, pd.MultiIndex):
-                # single value case: pivot_df.columns are organisms, create first level from the single value name
-                first_value_name = values_list[0]
-                pivot_df.columns = pd.MultiIndex.from_product([[first_value_name], pivot_df.columns.tolist()])
-
-            # determine full set of organisms we want to keep (preserve order from self._organisms if available)
-            try:
-                organisms = list(self._organisms.sort_values(by="Rack")["Organism"].tolist())
-            except Exception:
-                organisms = list(self._organisms["Organism"].unique())
-
-            # build expected full MultiIndex and reindex to keep columns that were all-NaN
-            expected_columns = pd.MultiIndex.from_product([values_list, organisms])
-            pivot_df = pivot_df.reindex(columns=expected_columns)
-
-            # finally reset index to get the same shape as before
-            pivot_multiindex_df = pivot_df.reset_index()
-
-            for threshold in self.thresholds:
-
-                if pivot_multiindex_df.empty:
-                    continue
-
-                organisms_thresholded_mics = pivot_multiindex_df[
-                    ["Internal ID", f"MIC{threshold} in µM"]
+                # dataset_grp = dataset_grp.fillna("NA")
+                values_list = [f"MIC{threshold} in µM" for threshold in self.thresholds] + [
+                    "Z-Factor mean",
+                    "Z-Factor std",
                 ]
-                cols = list(organisms_thresholded_mics.columns.droplevel())
-                cols[0] = "Internal ID"
-                organisms_thresholded_mics.columns = cols
-                organisms_thresholded_mics = organisms_thresholded_mics.sort_values(
-                    by=list(organisms_thresholded_mics.columns)[1:],
-                    na_position="last",
+                # create pivot without resetting index so we can manipulate the MultiIndex columns
+                pivot_df = pd.pivot_table(
+                    measurement_dataset_grp,
+                    values=values_list,
+                    index=["Internal ID", "Dataset"],
+                    columns="Organism",
                 )
 
-                # Fill with nan if not available
-                organisms_thresholded_mics = organisms_thresholded_mics.round(2)
-                organisms_thresholded_mics = organisms_thresholded_mics.astype(str)
-                id_info_columns = ["Internal ID", "External ID"] + [
-                    col for col in ["InChI", "InChI-Key"] if col in self.mic_df.columns
-                ]
-                organisms_thresholded_mics = pd.merge(
-                    organisms_thresholded_mics,
-                    self.mic_df[id_info_columns],
-                    on=["Internal ID"],
-                    how="left",
-                )
-                # organisms_thresholded_mics.fillna("NA", inplace=True)
+                # ensure columns are a MultiIndex of (value, organism) even if only one value was pivoted
+                if not isinstance(pivot_df.columns, pd.MultiIndex):
+                    # single value case: pivot_df.columns are organisms, create first level from the single value name
+                    first_value_name = values_list[0]
+                    pivot_df.columns = pd.MultiIndex.from_product([[first_value_name], pivot_df.columns.tolist()])
 
-                if not self.precipitation.results.empty and not self.substances_minimum_precipitation_conc is None:
+                # determine full set of organisms we want to keep (preserve order from self._organisms if available)
+                try:
+                    organisms = list(self._organisms.sort_values(by="Rack")["Organism"].tolist())
+                except Exception:
+                    organisms = list(self._organisms["Organism"].unique())
+
+                # build expected full MultiIndex and reindex to keep columns that were all-NaN
+                expected_columns = pd.MultiIndex.from_product([values_list, organisms])
+                pivot_df = pivot_df.reindex(columns=expected_columns)
+
+                # finally reset index to get the same shape as before
+                pivot_multiindex_df = pivot_df.reset_index()
+
+                for threshold in self.thresholds:
+
+                    if pivot_multiindex_df.empty:
+                        continue
+
+                    organisms_thresholded_mics = pivot_multiindex_df[
+                        ["Internal ID", f"MIC{threshold} in µM"]
+                    ]
+                    cols = list(organisms_thresholded_mics.columns.droplevel())
+                    cols[0] = "Internal ID"
+                    organisms_thresholded_mics.columns = cols
+                    organisms_thresholded_mics = organisms_thresholded_mics.sort_values(
+                        by=list(organisms_thresholded_mics.columns)[1:],
+                        na_position="last",
+                    )
+
+                    # Fill with nan if not available
+                    organisms_thresholded_mics = organisms_thresholded_mics.round(2)
+                    organisms_thresholded_mics = organisms_thresholded_mics.astype(str)
+                    id_info_columns = ["Internal ID", "External ID"] + [
+                        col
+                        for col in ["InChI", "InChI-Key"]
+                        if col in measurement_dataset_grp.columns
+                    ]
                     organisms_thresholded_mics = pd.merge(
                         organisms_thresholded_mics,
-                        self.substances_minimum_precipitation_conc,
-                        how="left"
+                        measurement_dataset_grp[id_info_columns].drop_duplicates(),
+                        on=["Internal ID"],
+                        how="left",
                     )
-                organisms_thresholded_mics = organisms_thresholded_mics.reset_index(drop=True)
-                organisms_thresholded_mics = organisms_thresholded_mics.drop_duplicates()
-                # Add unit column
-                unit_values = self._dilutions.get("Unit")
-                organisms_thresholded_mics["Unit"] = unit_values.dropna().iloc[0] if unit_values is not None and not unit_values.dropna().empty else None
-                # Reorder columns
-                desired_order = ["Internal ID", "External ID"] + [
-                    col for col in ["InChI", "InChI-Key"] if col in organisms_thresholded_mics.columns
-                ]
-                remaining_cols = [col for col in organisms_thresholded_mics.columns if col not in desired_order]
-                organisms_thresholded_mics = organisms_thresholded_mics[desired_order + remaining_cols]
-                organisms_thresholded_mics = organisms_thresholded_mics.replace("nan", "NA").fillna("NA")
-                result_tables.append(
-                    Result(
-                        dataset_name,
-                        f"{dataset_name}_MIC{int(round(threshold))}_results",
-                        table=organisms_thresholded_mics.reset_index(drop=True)
+                    # organisms_thresholded_mics.fillna("NA", inplace=True)
+
+                    if not self.precipitation.results.empty and not self.substances_minimum_precipitation_conc is None:
+                        organisms_thresholded_mics = pd.merge(
+                            organisms_thresholded_mics,
+                            self.substances_minimum_precipitation_conc,
+                            how="left"
+                        )
+                    organisms_thresholded_mics = organisms_thresholded_mics.reset_index(drop=True)
+                    organisms_thresholded_mics = organisms_thresholded_mics.drop_duplicates()
+                    # Add unit column
+                    unit_values = self._dilutions.get("Unit")
+                    organisms_thresholded_mics["Unit"] = unit_values.dropna().iloc[0] if unit_values is not None and not unit_values.dropna().empty else None
+                    # Reorder columns
+                    desired_order = ["Internal ID", "External ID"] + [
+                        col for col in ["InChI", "InChI-Key"] if col in organisms_thresholded_mics.columns
+                    ]
+                    remaining_cols = [col for col in organisms_thresholded_mics.columns if col not in desired_order]
+                    organisms_thresholded_mics = organisms_thresholded_mics[desired_order + remaining_cols]
+                    organisms_thresholded_mics = organisms_thresholded_mics.replace("nan", "NA").fillna("NA")
+                    result_tables.append(
+                        Result(
+                            dataset_name,
+                            f"{dataset_name}_{measurement_label}_MIC{int(round(threshold))}_results",
+                            table=organisms_thresholded_mics.reset_index(drop=True)
+                        )
                     )
-                )
 
         return result_tables
 

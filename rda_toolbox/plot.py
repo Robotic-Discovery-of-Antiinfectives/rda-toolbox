@@ -110,7 +110,7 @@ def plateheatmaps(
 
 
 def blank_heatmap(blank_df: pd.DataFrame) -> alt.LayerChart:
-    blank_df = blank_df.copy()[["Row_384", "Col_384", "Optical Density"]]
+    blank_df = blank_df.copy()[["Row_384", "Col_384", "Measurement"]]
     title = "Blank (Only Medium) plate"
     base = alt.Chart(
         blank_df, title=alt.TitleParams("", subtitle=title) if title else ""
@@ -120,12 +120,12 @@ def blank_heatmap(blank_df: pd.DataFrame) -> alt.LayerChart:
         tooltip=list(blank_df.columns),
     )
     heatmap = base.mark_rect().encode(
-        alt.Color("Optical Density:Q")
-        .title("Optical Density")
+        alt.Color("Measurement:Q")
+        .title("Measurement")
         .scale(domain=[0, 100])
     )
     text = base.mark_text(baseline="middle", align="center", fontSize=10).encode(
-        alt.Text("Optical Density:Q", format=".1f"),
+        alt.Text("Measurement:Q", format=".1f"),
     )
     return alt.layer(heatmap, text)
 
@@ -657,8 +657,8 @@ def lineplots_facet(
                 axis=alt.Axis(labelAngle=-45, format=".2e", formatType="number"),
             ),
             y=alt.Y(
-                "Mean Relative Optical Density:Q",
-                title="Relative Optical Density",
+                "Mean Relative Measurement:Q",
+                title="Relative Measurement",
                 scale=alt.Scale(domain=[-20, 160], clamp=True),
             ),
             shape=alt.Shape(f"{by_id}:N", legend=None),
@@ -669,9 +669,9 @@ def lineplots_facet(
                 "Dataset",
                 "Concentration",
                 "Used Replicates",
-                "Raw Optical Density",
-                "Mean Relative Optical Density",
-                r"Std\. Relative Optical Density",
+                "Relative Measurement",
+                "Mean Relative Measurement",
+                r"Std\. Relative Measurement",
                 "Z-Factor",
             ],
         )

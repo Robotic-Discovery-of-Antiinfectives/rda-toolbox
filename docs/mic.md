@@ -19,6 +19,25 @@ mic = rda.MIC(
 )
 ```
 
+### Cytation 10 readout table header
+In the Cytation C10 reader software you can define things like table headers.
+To detect the result matrix and be flexible in naming this table, the keyword `cyt10_matrixheader_mapping` was introduced.
+The default value for this keyword is `cyt10_matrixheader_mapping = {"Results": "Raw Optical Density"}` (Usually its better to leave out the "Raw").
+
+```Python
+import rda_toolbox as rda
+
+mic = rda.MIC(
+    rawfiles_folderpath="../data/raw/24 h/",
+    inputfile_path="../data/input/MIC_Input.xlsx",
+    mp_ast_mapping_filepath="../data/input/DiS_MP_AsT_2024-12-02.txt",
+    ast_acd_mapping_filepath="../data/input/AmA_AsT_AcD_20260317.txt",
+    precipitation_rawfilepath="../data/raw/Precipitation/",
+    cyt10_matrixheader_mapping={"Read 1:554,593": "Fluorescence", "Read 2:450": "Optical Density"},
+    negative_controls="Organism + Medium",
+)
+```
+
 ### Save the results
 
 ```Python
