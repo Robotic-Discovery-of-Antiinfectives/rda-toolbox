@@ -396,7 +396,7 @@ def parse_mappingfile(
     """
     filedict = dict()
     with open(filepath) as file:
-        filecontents = file.read().splitlines()
+        filecontents = list(filter(None, map(lambda x: x.strip(), file.read().splitlines())))
         key = None
         for i, line in enumerate(filecontents):
             line = line.split(";")
@@ -485,7 +485,7 @@ def _validate_inputfile_structure(inputfile_path: str, substance_id: str) -> Non
                         issues.append(
                             f"Substances.{substance_id} contains duplicate IDs. Duplicates: {', '.join(map(str, duplicates))}."
                         )
-                    
+
 
     # Organisms sheet -> must have 'Organism'
     if "Organisms" in available_sheets:
@@ -592,7 +592,7 @@ def _validate_inputfile_structure(inputfile_path: str, substance_id: str) -> Non
             "Input file validation failed. Please fix the following issues in the Excel file:\n- "
             + "\n- ".join(issues)
         )
-    
+
 
 def read_inputfile(inputfile_path: str, substance_id) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame]:
 # Validate file structure and content before attempting to parse
