@@ -404,7 +404,7 @@ class PrimaryScreen(Experiment):
 
         self.precipitation = (
             None
-            if precipitation_rawfilepath is None
+            if not precipitation_rawfilepath
             else Precipitation(
                 precipitation_rawfilepath,
                 background_locations=background_locations,
@@ -459,7 +459,7 @@ class PrimaryScreen(Experiment):
         - Check if substances contains missing values.
         - Check if there are duplicate Internal IDs (references excluded)
         """
-        
+
 
     @cached_property
     def mapped_input_df(self):
@@ -649,7 +649,7 @@ class PrimaryScreen(Experiment):
                             dataset_name,
                             f"Scatterplot_BScores_{measurement_label}_{dataset_name}_{threshold}",
                             figure=measurement_vs_bscore_scatter(
-                                only_actives, 
+                                only_actives,
                                 measurement_header=f"Relative {measurement_label} mean",
                                 measurement_title=f"Relative {measurement_label}",
                                 show_area=False
@@ -926,20 +926,19 @@ class MIC(Experiment):  # Minimum Inhibitory Concentration
         self._molecule_external_id_column = molecule_external_id_column
         self._molecule_column = molecule_column
         self.precipitation = (
-            Precipitation(
+            None
+            if not precipitation_rawfilepath
+            else Precipitation(
                 precipitation_rawfilepath,
                 background_locations=precip_background_locations,
                 exclude_outlier=precip_exclude_outlier,
             )
-            # if precipitation_rawfilepath
-            # else None
         )
         self.precip_conc_multiplicator = precip_conc_multiplicator
         self.rawdata = (  # Overwrite rawdata if precipitation data is available
-            # self.rawdata
-            # if self.precipitation is None
-            # else
-            add_precipitation(
+            self.rawdata
+            if self.precipitation is None
+            else add_precipitation(
                 self.rawdata, self.precipitation.results, self._mapping_dict
             )
         )
@@ -965,7 +964,7 @@ class MIC(Experiment):  # Minimum Inhibitory Concentration
         ]
         self.substances_precipitation = (
             None
-            if self.precipitation.results.empty
+            if self.precipitation is None or self.precipitation.results.empty
             else (
                 self._processed_only_substances[
                     self._processed_only_substances["Dataset"] != "Negative Control"
@@ -988,7 +987,7 @@ class MIC(Experiment):  # Minimum Inhibitory Concentration
             )
         )
         def get_min_precip_conc_df(self):
-            if (self.precipitation.results.empty) and (not self.substances_precipitation):
+            if (self.precipitation is None or self.precipitation.results.empty) and (not self.substances_precipitation):
                 return None
             else:
                 precip_grps = []
@@ -1088,7 +1087,7 @@ class MIC(Experiment):  # Minimum Inhibitory Concentration
         mp_ast_mapping_dict = get_mapping_dict(
             parse_mappingfile(
                 self._mp_ast_mapping_filepath,
-                motherplate_column=self._mp_barcode_header, 
+                motherplate_column=self._mp_barcode_header,
                 childplate_column="AsT Barcode 384",
             ),
             mother_column=self._mp_barcode_header,
@@ -1521,7 +1520,7 @@ class MIC(Experiment):  # Minimum Inhibitory Concentration
 
         mic_df = self.mic_df
         # If precipitation has been done, merge MPC results on long mic_df
-        if not self.precipitation.results.empty and not self.substances_minimum_precipitation_conc is None:
+        if self.precipitation and (not self.precipitation.results.empty and not self.substances_minimum_precipitation_conc is None):
             mic_df = pd.merge(self.mic_df, self.substances_minimum_precipitation_conc, on="Internal ID", how="left")
 
         result_tables.append(
@@ -1601,7 +1600,7 @@ class MIC(Experiment):  # Minimum Inhibitory Concentration
                     )
                     # organisms_thresholded_mics.fillna("NA", inplace=True)
 
-                    if not self.precipitation.results.empty and not self.substances_minimum_precipitation_conc is None:
+                    if self.precipitation and (not self.precipitation.results.empty and not self.substances_minimum_precipitation_conc is None):
                         organisms_thresholded_mics = pd.merge(
                             organisms_thresholded_mics,
                             self.substances_minimum_precipitation_conc,
