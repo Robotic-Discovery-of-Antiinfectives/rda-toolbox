@@ -171,7 +171,7 @@ def get_zfactor_heatmap(
             alt.value("white"),
         ),
     )
-    
+
     return alt.hconcat(
         alt.layer(zfact_heatmap, zfact_text).properties(title=alt.Title("Z-Factor", fontSize=20)),
         alt.layer(robustzfact_heatmap, robustzfact_text).properties(title=alt.Title("Robust Z-Factor", fontSize=20)),
@@ -750,7 +750,7 @@ def potency_distribution(
     dataset_grp: pd.DataFrame,
     threshold: float,
     dataset: str,
-    intervals: Sequence[float] = (0.05, 0.1, 0.78, 6.25, 50),
+    # intervals: Sequence[float] = (0.05, 0.1, 0.78, 6.25, 50),
     title: str = "Potency Distribution",
     ylabel: str = "Number of Compounds",
     xlabel: str = "MIC Interval",
@@ -785,6 +785,8 @@ def potency_distribution(
         .value_counts()
         .reset_index(name=ylabel)
     )
+    # get Intervals from determined MICs
+    intervals = sorted(filter(lambda x: not pd.isna(x), dataset_grp[f"MIC{threshold} in µM"].unique()))
     no_mic[xlabel] = f">{max(intervals)}"
     sub_df = (
         dataset_grp.groupby("Organism")[f"MIC{threshold} in µM"]
@@ -799,7 +801,7 @@ def potency_distribution(
         legendcolumns = 3
     base = alt.Chart(sub_df, title=alt.Title(title, subtitle=[f"Dataset: {dataset}"]))
     bar = base.mark_bar(stroke="white").encode(
-        alt.X(f"{xlabel}:N").axis(labelAngle=0),
+        alt.X(f"{xlabel}:N").axis(labelAngle=-45),
         y=alt.Y(f"{ylabel}:Q").scale(domain=[0, max(sub_df[ylabel])+2]),
         color=alt.Color("Organism:N").legend(
             orient=legendlabelorient,
