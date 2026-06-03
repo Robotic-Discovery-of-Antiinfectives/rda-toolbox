@@ -30,6 +30,7 @@ def get_heatmap(
     negative_controls: str,
     blanks: str,
 ) -> alt.LayerChart:
+    subdf = subdf.round({"Measurement": 1})  # round the data to 1 decimal place
     base = alt.Chart(
         subdf,
     ).encode(
